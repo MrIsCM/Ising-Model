@@ -1,4 +1,9 @@
 # Test files and folders
 test.*
 test/
+tests/
+test_*.*
+test_*/
 
+# ignore __pycache__
+__pycache__
