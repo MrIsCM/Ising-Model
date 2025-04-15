@@ -1,12 +1,27 @@
+# Imports
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")  # Usar backend sin GUI para guardar imágenes/ GIFs
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.colors import LinearSegmentedColormap
 import random
+from pathlib import Path
 
+
+# Parametros/configuración de las librerías
+matplotlib.use("Agg")  # Usar backend sin GUI para guardar imágenes/ GIFs
 custom_cmap = LinearSegmentedColormap.from_list("red_blue", ["#0033CC", "#CC0000"])
+
+# Paths para guardar imágenes y resultados
+figures_dir = Path("figures")
+figures_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
+
+data_dir = Path("data")
+data_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
+
+gifs_dir = Path("gifs")
+gifs_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
+
 
 # Constantes para interacciones (nuevos valores)
 J1 = 1.0   # Acoplamiento para vecinos inmediatos
@@ -130,7 +145,7 @@ def ising_simulacion(N, T, pasos=100, generar_gif=True, calcular_magnetizacion=F
 # ANIMACIÓN
 # -----------------------------
 
-def crear_gif(frames, nombre="ising.gif", intervalo=100, dpi=150):
+def crear_gif(frames, nombre="ising.gif", intervalo=100, dpi=150, dir_path=gifs_dir):
     """
     Crea un archivo .gif animado desde la lista de fotogramas (matrices de spin).
     """
@@ -142,15 +157,16 @@ def crear_gif(frames, nombre="ising.gif", intervalo=100, dpi=150):
         im.set_data(frames[i])
         return im,
 
+    file_path = dir_path / nombre
     ani = FuncAnimation(fig, update, frames=len(frames), interval=intervalo, blit=True)
-    ani.save(nombre, dpi=dpi, writer=PillowWriter(fps=1000//intervalo))
+    ani.save(file_path, dpi=dpi, writer=PillowWriter(fps=1000//intervalo))
     plt.close()
 
 # -----------------------------
 # GUARDAR IMÁGENES EQUIESPACIADAS
 # -----------------------------
 
-def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150):
+def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150, dir_path=figures_dir):
     """
     Guarda num_imagenes imágenes del sistema de Ising a partir de la lista de frames.
     Se seleccionan imágenes equiespaciadas, incluyendo la primera y la última.
@@ -171,7 +187,8 @@ def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150):
         ax.axis("off")
         ax.imshow(frames[idx], cmap=custom_cmap, vmin=-1, vmax=1)
         filename = f"{nombre_base}_imagen_{i+1}.png"
-        plt.savefig(filename, dpi=dpi, bbox_inches='tight')
+        file_path = dir_path / filename
+        plt.savefig(file_path, dpi=dpi, bbox_inches='tight')
         plt.close()
         print(f"Imagen guardada: {filename}")
 
@@ -179,7 +196,7 @@ def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150):
 # REPRESENTACIÓN DE LA CURVA DE MAGNETIZACIÓN
 # -----------------------------
 
-def graficar_magnetizacion(magnetizaciones, T, N, nombre="magnetizacion_curva.png"):
+def graficar_magnetizacion(magnetizaciones, T, N, nombre="magnetizacion_curva.png", dir_path=figures_dir):
     """
     Crea y guarda un gráfico de la magnetización en función del número de pasos Monte Carlo.
 
@@ -195,7 +212,8 @@ def graficar_magnetizacion(magnetizaciones, T, N, nombre="magnetizacion_curva.pn
     plt.ylabel("Magnetización promedio")
     plt.title(f"Evolución de la Magnetización - T = {T}, N = {N}")
     plt.grid(False)
-    plt.savefig(nombre, dpi=150)
+    file_path = dir_path / nombre
+    plt.savefig(file_path, dpi=150)
     plt.close()
 
 # -----------------------------
@@ -215,7 +233,8 @@ if __name__ == "__main__":
     print(f"Guardando animación como {gif_name}...")
     crear_gif(frames, nombre=gif_name)
 
-    np.savetxt(f"magnetizacion_T{T}_N{N}.txt", mags)
+    mag_filepath = data_dir / f"magnetizacion_T{T}_N{N}.txt"
+    np.savetxt(mag_filepath, mags)
     print("Simulación completada. Resultados guardados correctamente.")
 
     # Representar la curva de magnetización
