@@ -12,17 +12,6 @@ from pathlib import Path
 matplotlib.use("Agg")  # Usar backend sin GUI para guardar imágenes/ GIFs
 custom_cmap = LinearSegmentedColormap.from_list("red_blue", ["#0033CC", "#CC0000"])
 
-# Paths para guardar imágenes y resultados
-figures_dir = Path("figures")
-figures_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
-
-data_dir = Path("data")
-data_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
-
-gifs_dir = Path("gifs")
-gifs_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
-
-
 # Constantes para interacciones (nuevos valores)
 J1 = 1.0   # Acoplamiento para vecinos inmediatos
 J2 = 2.0   # Acoplamiento para vecinos diagonales (next-nearest neighbors)
@@ -169,7 +158,8 @@ def ising_simulacion(N, T, pasos=100, generar_gif=True, intervalo_gif=1, calcula
 # ANIMACIÓN
 # -----------------------------
 
-def crear_gif(frames, nombre="ising.gif", intervalo=100, dpi=150, dir_path=gifs_dir):
+
+def crear_gif(frames, nombre="ising.gif", intervalo=100, dpi=150, dir_path=Path("gifs")):
     """
     Crea un archivo .gif animado desde la lista de fotogramas (matrices de spin).
     """
@@ -190,7 +180,7 @@ def crear_gif(frames, nombre="ising.gif", intervalo=100, dpi=150, dir_path=gifs_
 # GUARDAR IMÁGENES EQUIESPACIADAS
 # -----------------------------
 
-def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150, dir_path=figures_dir):
+def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150, dir_path=Path("figures")):
     """
     Guarda num_imagenes imágenes del sistema de Ising a partir de la lista de frames.
     Se seleccionan imágenes equiespaciadas, incluyendo la primera y la última.
@@ -221,7 +211,7 @@ def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150, dir_p
 # REPRESENTACIÓN DE LA CURVA DE MAGNETIZACIÓN
 # -----------------------------
 
-def graficar_magnetizacion(magnetizaciones, pasos_MC_mags, T, N, nombre="magnetizacion_curva.png", dir_path=figures_dir):
+def graficar_magnetizacion(magnetizaciones, pasos_MC_mags, T, N, nombre="magnetizacion_curva.png", dir_path=Path("figures")):
     """
     Crea y guarda un gráfico de la magnetización en función del número de pasos Monte Carlo.
 
@@ -249,11 +239,46 @@ def graficar_magnetizacion(magnetizaciones, pasos_MC_mags, T, N, nombre="magneti
 # -----------------------------
 
 if __name__ == "__main__":
+
+    test_mode = True  # Cambiar a True para pruebas rápidas
+
+
+    # Paths para guardar imágenes y resultados
+    figures_dir = Path("figures")
+    figures_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
+
+    data_dir = Path("data")
+    data_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
+
+    gifs_dir = Path("gifs")
+    gifs_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
+    
+    if test_mode:
+        test_dir = Path("test")
+        test_dir.mkdir(exist_ok=True)  # Crear directorio si no existe
+
+        # Cambiar todos los directorios a test_dir para pruebas rápidas
+        figures_dir = test_dir / "figures"
+        figures_dir.mkdir(exist_ok=True)
+        
+        gifs_dir = test_dir / "gifs"
+        gifs_dir.mkdir(exist_ok=True)
+        
+        data_dir = test_dir / "data"
+        data_dir.mkdir(exist_ok=True)
+
+
     # Parámetros de la simulación
     N = 64                # Tamaño de la red
     T = 0.75               # Temperatura (en unidades arbitrarias)
     pasos = 100          # Número de pasos Monte Carlo
     num_imagenes = 5      # Número de imágenes a guardar para el paper
+
+    if test_mode:
+        N = 64
+        T = 0.75
+        pasos = 100
+        num_imagenes = 5
 
     # Variables de control
     generar_gif = True
@@ -274,7 +299,7 @@ if __name__ == "__main__":
     if generar_gif:
         gif_name = f"ising_T{T}_N{N}.gif"
         print(f"Guardando animación como {gif_name}...")
-        crear_gif(frames, nombre=gif_name)
+        crear_gif(frames, nombre=gif_name, dir_path=gifs_dir)
 
     if calcular_magnetizacion:
         print(f"Guardando magnetización promedio en {data_dir / f'magnetizacion_T{T}_N{N}.txt'}...")
@@ -285,11 +310,11 @@ if __name__ == "__main__":
 
         # Representar la curva de magnetización
         curva_magnetizacion = f"magnetizacion_curva_T{T}_N{N}.png"
-        graficar_magnetizacion(mags, pasos_MC_mags, T, N, nombre=curva_magnetizacion)
+        graficar_magnetizacion(mags, pasos_MC_mags, T, N, nombre=curva_magnetizacion, dir_path=figures_dir)
         print(f"Curva de magnetización guardada como {curva_magnetizacion}.")
 
     if generar_gif:
         # Guardar imágenes equiespaciadas para presentación en paper científico
         print("Guardando imágenes equiespaciadas para el paper...")
-        guardar_imagenes(frames, num_imagenes=num_imagenes, nombre_base=f"ising_T{T}_N{N}")
+        guardar_imagenes(frames, num_imagenes=num_imagenes, nombre_base=f"ising_T{T}_N{N}", dir_path=figures_dir)
 
