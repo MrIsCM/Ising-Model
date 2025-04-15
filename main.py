@@ -101,7 +101,7 @@ def actualizar_contornos(web, N):
 # SIMULACIÓN PRINCIPAL
 # -----------------------------
 
-def ising_simulacion(N, T, pasos=100, generar_gif=True, calcular_magnetizacion=False):
+def ising_simulacion(N, T, pasos=100, generar_gif=True, calcular_magnetizacion=False, intervalo_magnetizacion=1):
     """
     Ejecuta la simulación del modelo de Ising modificado con interacciones de corto y largo alcance:
     - N: tamaño de la red NxN
@@ -109,6 +109,7 @@ def ising_simulacion(N, T, pasos=100, generar_gif=True, calcular_magnetizacion=F
     - pasos: número de pasos Monte Carlo
     - generar_gif: si True, guarda los estados intermedios para animación
     - calcular_magnetizacion: si True, calcula la magnetización en cada paso
+    - intervalo_magnetizacion: intervalo para calcular la magnetización (en pasos Monte Carlo)
 
     Se guarda la imagen del estado inicial y luego los pasos se van grabando.
     """
@@ -136,8 +137,10 @@ def ising_simulacion(N, T, pasos=100, generar_gif=True, calcular_magnetizacion=F
             frames.append(s[1:N + 1, 1:N + 1].copy())
 
         if calcular_magnetizacion:
-            mag = np.abs(np.sum(s[1:N + 1, 1:N + 1])) / (N * N)
-            magnetizaciones.append(mag)
+            # Calcula la magnetizaction promedio cada intervalo_magnetizacion pasos
+            if paso % intervalo_magnetizacion == 0:
+                mag = np.abs(np.sum(s[1:N + 1, 1:N + 1])) / (N * N)
+                magnetizaciones.append(mag)
 
     return frames, magnetizaciones
 
@@ -175,6 +178,7 @@ def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150, dir_p
     - frames: lista de matrices de spin.
     - num_imagenes: número de imágenes a guardar (por defecto 5).
     - nombre_base: base para el nombre de archivo de las imágenes.
+    - dir_path: directorio donde se guardarán las imágenes.
     """
     total = len(frames)
     if num_imagenes >= total:
@@ -205,6 +209,7 @@ def graficar_magnetizacion(magnetizaciones, T, N, nombre="magnetizacion_curva.pn
     - T: temperatura del sistema (para etiquetar el gráfico).
     - N: tamaño de la red (para etiquetar el gráfico).
     - nombre: nombre del archivo de salida (imagen PNG).
+    - dir_path: directorio donde se guardará la imagen.
     """
     plt.figure()
     plt.plot(magnetizaciones, marker='o', linestyle='-', color='blue')
@@ -233,6 +238,7 @@ if __name__ == "__main__":
     print(f"Guardando animación como {gif_name}...")
     crear_gif(frames, nombre=gif_name)
 
+    # Guarda la magnetizacion en un archivo de texto dentro de la carpeta 'data_dir'
     mag_filepath = data_dir / f"magnetizacion_T{T}_N{N}.txt"
     np.savetxt(mag_filepath, mags)
     print("Simulación completada. Resultados guardados correctamente.")
