@@ -101,30 +101,49 @@ def actualizar_contornos(web, N):
 # SIMULACIÓN PRINCIPAL
 # -----------------------------
 
-def ising_simulacion(N, T, pasos=100, generar_gif=True, calcular_magnetizacion=False, intervalo_magnetizacion=1):
+def ising_simulacion(N, T, pasos=100, generar_gif=True, intervalo_gif=1, calcular_magnetizacion=False, intervalo_magnetizacion=1):
     """
     Ejecuta la simulación del modelo de Ising modificado con interacciones de corto y largo alcance:
     - N: tamaño de la red NxN
     - T: temperatura del sistema
     - pasos: número de pasos Monte Carlo
     - generar_gif: si True, guarda los estados intermedios para animación
+    - intervalo_gif: intervalo entre frames en el gif (en pasos Monte Carlo)
     - calcular_magnetizacion: si True, calcula la magnetización en cada paso
     - intervalo_magnetizacion: intervalo para calcular la magnetización (en pasos Monte Carlo)
 
     Se guarda la imagen del estado inicial y luego los pasos se van grabando.
+
+    Devuelve:
+    - frames: lista de matrices de spin para cada frame del gif
+    - magnetizaciones: lista de valores de magnetización promedio
+    - pasos_MC_frames: pasos Monte Carlo correspondientes a los frames
+    - pasos_MC_mag: pasos Monte Carlo correspondientes a las magnetizaciones
     """
     s = crear_matriz(N)
-    frames = []
-    magnetizaciones = []
 
-    # Guardar el estado inicial
-    if generar_gif:
-        frames.append(s[1:N + 1, 1:N + 1].copy())
-    if calcular_magnetizacion:
-        mag = np.abs(np.sum(s[1:N + 1, 1:N + 1])) / (N * N)
-        magnetizaciones.append(mag)
+    # Inicializa listas para guardar frames y magnetizaciones
+    frames = []
+    pasos_MC_frames = []
+
+    magnetizaciones = []
+    pasos_MC_mag = []
 
     for paso in range(pasos):
+        # Primero guardamos el estado
+        if generar_gif:
+            # Guarda el estado cada intervalo_gif pasos
+            if paso % intervalo_gif == 0:
+                frames.append(s[1:N + 1, 1:N + 1].copy())
+                pasos_MC_frames.append(paso)
+
+        if calcular_magnetizacion:
+            # Calcula la magnetizaction promedio cada intervalo_magnetizacion pasos
+            if paso % intervalo_magnetizacion == 0:
+                mag = np.abs(np.sum(s[1:N + 1, 1:N + 1])) / (N * N)
+                magnetizaciones.append(mag)
+                pasos_MC_mag.append(paso)
+
         for _ in range(N * N):
             x, y = puntoaleatorio(N)
             p_val = P(s, x, y, T)
@@ -133,16 +152,18 @@ def ising_simulacion(N, T, pasos=100, generar_gif=True, calcular_magnetizacion=F
                 s[x, y] = nuevo
                 s = actualizar_contornos(s, N)
 
-        if generar_gif:
-            frames.append(s[1:N + 1, 1:N + 1].copy())
 
-        if calcular_magnetizacion:
-            # Calcula la magnetizaction promedio cada intervalo_magnetizacion pasos
-            if paso % intervalo_magnetizacion == 0:
-                mag = np.abs(np.sum(s[1:N + 1, 1:N + 1])) / (N * N)
-                magnetizaciones.append(mag)
+    # Guardamos el último estado si no se guardó antes
+    if generar_gif and pasos_MC_frames[-1] != pasos:
+        frames.append(s[1:N + 1, 1:N + 1].copy())
+        pasos_MC_frames.append(pasos)
+    
+    if calcular_magnetizacion and pasos_MC_mag[-1] != pasos:
+        mag = np.abs(np.sum(s[1:N + 1, 1:N + 1])) / (N * N)
+        magnetizaciones.append(mag)
+        pasos_MC_mag.append(pasos)
 
-    return frames, magnetizaciones
+    return frames, magnetizaciones, pasos_MC_frames, pasos_MC_mag
 
 # -----------------------------
 # ANIMACIÓN
@@ -200,19 +221,21 @@ def guardar_imagenes(frames, num_imagenes=5, nombre_base="ising", dpi=150, dir_p
 # REPRESENTACIÓN DE LA CURVA DE MAGNETIZACIÓN
 # -----------------------------
 
-def graficar_magnetizacion(magnetizaciones, T, N, nombre="magnetizacion_curva.png", dir_path=figures_dir):
+def graficar_magnetizacion(magnetizaciones, pasos_MC_mags, T, N, nombre="magnetizacion_curva.png", dir_path=figures_dir):
     """
     Crea y guarda un gráfico de la magnetización en función del número de pasos Monte Carlo.
 
     Parámetros:
     - magnetizaciones: lista de valores de magnetización obtenidos en la simulación.
+    - pasos_MC_mags: lista de pasos Monte Carlo correspondientes a las magnetizaciones.
     - T: temperatura del sistema (para etiquetar el gráfico).
     - N: tamaño de la red (para etiquetar el gráfico).
     - nombre: nombre del archivo de salida (imagen PNG).
     - dir_path: directorio donde se guardará la imagen.
     """
+
     plt.figure()
-    plt.plot(magnetizaciones, marker='o', linestyle='-', color='blue')
+    plt.plot(pasos_MC_mags, magnetizaciones, marker='o', linestyle='--', color='blue')
     plt.xlabel("Pasos Monte Carlo")
     plt.ylabel("Magnetización promedio")
     plt.title(f"Evolución de la Magnetización - T = {T}, N = {N}")
@@ -226,29 +249,47 @@ def graficar_magnetizacion(magnetizaciones, T, N, nombre="magnetizacion_curva.pn
 # -----------------------------
 
 if __name__ == "__main__":
+    # Parámetros de la simulación
     N = 64                # Tamaño de la red
-    T = 0.5               # Temperatura (en unidades arbitrarias)
+    T = 0.75               # Temperatura (en unidades arbitrarias)
     pasos = 100          # Número de pasos Monte Carlo
-    gif_name = f"ising_T{T}_N{N}.gif"
     num_imagenes = 5      # Número de imágenes a guardar para el paper
 
+    # Variables de control
+    generar_gif = True
+    intervalo_gif = 10
+
+    calcular_magnetizacion = True
+    intervalo_magnetizacion = 10
+
+    # Simulación
     print(f"Simulando Modelo de Ising modificado (con interacciones de largo alcance) para T = {T}, N = {N}...")
-    frames, mags = ising_simulacion(N, T, pasos=pasos, generar_gif=True, calcular_magnetizacion=True)
+    
+    frames, mags, pasos_MC_frames, pasos_MC_mags = ising_simulacion(
+        N, T, pasos=pasos,
+        generar_gif=generar_gif, intervalo_gif=intervalo_gif,
+        calcular_magnetizacion=calcular_magnetizacion, intervalo_magnetizacion=intervalo_magnetizacion
+        )
 
-    print(f"Guardando animación como {gif_name}...")
-    crear_gif(frames, nombre=gif_name)
+    if generar_gif:
+        gif_name = f"ising_T{T}_N{N}.gif"
+        print(f"Guardando animación como {gif_name}...")
+        crear_gif(frames, nombre=gif_name)
 
-    # Guarda la magnetizacion en un archivo de texto dentro de la carpeta 'data_dir'
-    mag_filepath = data_dir / f"magnetizacion_T{T}_N{N}.txt"
-    np.savetxt(mag_filepath, mags)
-    print("Simulación completada. Resultados guardados correctamente.")
+    if calcular_magnetizacion:
+        print(f"Guardando magnetización promedio en {data_dir / f'magnetizacion_T{T}_N{N}.txt'}...")
+        # Guardar magnetización promedio en un archivo de texto
+        mag_filepath = data_dir / f"magnetizacion_T{T}_N{N}.txt"
+        np.savetxt(mag_filepath, mags)
+        print("Magnetización guardada correctamente.")
 
-    # Representar la curva de magnetización
-    curva_magnetizacion = f"magnetizacion_curva_T{T}_N{N}.png"
-    graficar_magnetizacion(mags, T, N, nombre=curva_magnetizacion)
-    print(f"Curva de magnetización guardada como {curva_magnetizacion}.")
+        # Representar la curva de magnetización
+        curva_magnetizacion = f"magnetizacion_curva_T{T}_N{N}.png"
+        graficar_magnetizacion(mags, pasos_MC_mags, T, N, nombre=curva_magnetizacion)
+        print(f"Curva de magnetización guardada como {curva_magnetizacion}.")
 
-    # Guardar imágenes equiespaciadas para presentación en paper científico
-    print("Guardando imágenes equiespaciadas para el paper...")
-    guardar_imagenes(frames, num_imagenes=num_imagenes, nombre_base=f"ising_T{T}_N{N}")
+    if generar_gif:
+        # Guardar imágenes equiespaciadas para presentación en paper científico
+        print("Guardando imágenes equiespaciadas para el paper...")
+        guardar_imagenes(frames, num_imagenes=num_imagenes, nombre_base=f"ising_T{T}_N{N}")
 
