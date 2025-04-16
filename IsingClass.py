@@ -216,18 +216,56 @@ class IsingModel:
         self.magnetizaciones_dir = magnetizaciones_dir
 
 
-    def guardar_gif(self):
-        """
-        Guarda el gif de la simulación en el directorio especificado.
-        """
+    def crear_gif(self, nombre='ising.gif', intervalo=100, dpi=150, dir_path=None):
 
-        # Configura los paths
-        self.configurar_paths()
+        """
+        Crea un archivo .gif animado desde la lista de fotogramas (matrices de spin).
+        """
+        if dir_path is None:
+            dir_path = self.gif_dir
 
-        # Genera y guarda el gif
-        if self.frames is not None:
-            from PIL import Image
-            frames = [Image.fromarray((frame + 1) * 127) for frame in self.frames]
-            frames[0].save(self.gif_dir / f'Ising_N{self.N}_T{self.T}_J1{self.J1}_J2{self.J2}.gif', save_all=True, append_images=frames[1:], optimize=False, duration=100, loop=0)
-        else:
-            print("No hay frames para guardar.")
+        frames = self.frames
+        custom_cmap = plt.get_cmap('coolwarm')
+
+        fig, ax = plt.subplots()
+        ax.axis("off")
+        im = ax.imshow(frames[0], cmap=custom_cmap, vmin=-1, vmax=1)
+
+        def update(i):
+            im.set_data(frames[i])
+            return im,
+
+        file_path = dir_path / nombre
+        ani = FuncAnimation(fig, update, frames=len(frames), interval=intervalo, blit=True)
+        ani.save(file_path, dpi=dpi, writer=PillowWriter(fps=1000//intervalo))
+        plt.close(fig)
+
+        
+    def guardar_imagenes(self, nombre='ising', dpi=150, dir_path=None):
+        """
+        Guarda las imágenes de la red en el directorio especificado.
+        """
+        if dir_path is None:
+            dir_path = self.imagenes_dir
+
+        for i, imagen in enumerate(self.imagenes):
+            file_path = dir_path / f"{nombre}_N{self.N}_T{self.T}_{i+1}.png"
+            plt.imsave(file_path, imagen, cmap='coolwarm', vmin=-1, vmax=1, dpi=dpi)
+            plt.close()
+
+    def graficar_magnetizacion(self, nombre='curva_magnetizacion.png', dir_path=None):
+        """
+        Grafica la magnetización a lo largo de los pasos de Monte Carlo.
+        """
+        if dir_path is None:
+            dir_path = self.magnetizaciones_dir
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.pasos_magnetizaciones, self.magnetizaciones, marker='o', linestyle='--', color='b')
+        plt.title(f'Magnetización vs Pasos MC (N={self.N}, T={self.T})')
+        plt.xlabel('Pasos Monte Carlo')
+        plt.ylabel('Magnetización')
+        plt.grid()
+        file_path = dir_path / nombre
+        plt.savefig(file_path, dpi=150)
+        plt.close()
