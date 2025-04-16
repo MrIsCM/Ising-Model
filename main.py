@@ -41,9 +41,9 @@ else:
 
 
 # Configuración de la simulación
-N = 64                # Tamaño de la red
+N = 128                # Tamaño de la red
 T = 0.75              # Temperatura (en unidades arbitrarias)
-pasos = 500           # Número de pasos Monte Carlo
+pasos = 10000           # Número de pasos Monte Carlo
 num_imagenes = 5      # Número de imágenes a guardar para el paper
 
 # Reproducibilidad
@@ -58,9 +58,9 @@ if test_mode:
 
 # Variables de control comunes
 generar_gif = True
-intervalo_gif = 10
+intervalo_gif = 100
 calcular_magnetizacion = True
-intervalo_magnetizacion = 10
+intervalo_magnetizacion = 100
 verbose = False
 
 # Opción de modelo: "clasico", "modificado" o "ambos"
