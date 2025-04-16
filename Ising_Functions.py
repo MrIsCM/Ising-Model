@@ -52,23 +52,25 @@ def P_modificado(s, n, m, T, J1=J1, J2=J2):
     E = 2 * s[n, m] * (J1 * vecinos_inmediatos + J2 * vecinos_diagonales)
     return min(1.0, np.exp(-E / T))
 
-def crear_matriz_modificado(N):
+
+def crear_matriz_toroidal(N, values=[1, -1], padding_width=1, mode='wrap', seed=42):
     """
-    Crea una red de NxN spins aleatorios (valores +1 o -1) y añade bordes periódicos.
-    Se configuran los bordes y esquinas para cumplir con las interacciones diagonales.
+    Crea una red de NxN spins aleatorios (valores +1 o -1) y añade bordes periódicos toroidales.
+    
+    Parámetros:
+    - N (int): Tamaño de la red (NxN).
+    - padding_width (int): Ancho del borde añadido (por defecto 1).
+    - mode (str): Modo de relleno para los bordes (por defecto 'wrap' para bordes periódicos).
+
+    Devuelve:
+    - numpy.ndarray: Red con bordes periódicos añadidos.
     """
-    red = np.where(np.random.rand(N, N) < 0.5, -1, 1)
-    web = np.zeros((N + 2, N + 2))
-    web[1:N + 1, 1:N + 1] = red
-    web[0, 1:N + 1] = red[N - 1, :]
-    web[N + 1, 1:N + 1] = red[0, :]
-    web[1:N + 1, 0] = red[:, N - 1]
-    web[1:N + 1, N + 1] = red[:, 0]
-    # Inicializar las esquinas
-    web[0,0] = red[N-1, N-1]
-    web[0, N+1] = red[N-1, 0]
-    web[N+1, 0] = red[0, N-1]
-    web[N+1, N+1] = red[0, 0]
+
+    rng_generator = np.random.default_rng(seed=seed)
+    
+    red = rng_generator.choice(values, size=(N, N))
+    web = np.pad(red, pad_width=padding_width, mode=mode)
+
     return web
 
 def actualizar_contornos_modificado(web, N):
@@ -92,7 +94,7 @@ def actualizar_contornos_modificado(web, N):
     return web
 
 def ising_simulacion_modificado(N, T, pasos=100, generar_gif=True, intervalo_gif=1,
-                                calcular_magnetizacion=False, intervalo_magnetizacion=1):
+                                calcular_magnetizacion=False, intervalo_magnetizacion=1, seed=None):
     """
     Ejecuta la simulación del modelo de Ising modificado (con interacciones de corto y largo alcance):
     - N: tamaño de la red NxN
@@ -112,7 +114,7 @@ def ising_simulacion_modificado(N, T, pasos=100, generar_gif=True, intervalo_gif
     - pasos_MC_frames: pasos Monte Carlo correspondientes a los frames
     - pasos_MC_mag: pasos Monte Carlo correspondientes a las magnetizaciones
     """
-    s = crear_matriz_modificado(N)
+    s = crear_matriz_toroidal(N, seed=seed)
 
     # Inicializa listas para guardar frames y magnetizaciones
     frames = []
@@ -154,68 +156,6 @@ def ising_simulacion_modificado(N, T, pasos=100, generar_gif=True, intervalo_gif
 
     return frames, magnetizaciones, pasos_MC_frames, pasos_MC_mag
 
-def ising_simulacion_modificado_iter(N, T, pasos=100, generar_gif=True, intervalo_gif=1,
-                                calcular_magnetizacion=False, intervalo_magnetizacion=1):
-    """
-    Ejecuta la simulación del modelo de Ising modificado (con interacciones de corto y largo alcance):
-    - N: tamaño de la red NxN
-    - T: temperatura del sistema
-    - pasos: número de pasos Monte Carlo
-    - generar_gif: si True, guarda los estados intermedios para animación
-    - intervalo_gif: intervalo entre frames en el gif (en pasos Monte Carlo)
-    - calcular_magnetizacion: si True, calcula la magnetización en cada paso
-    - intervalo_magnetizacion: intervalo para calcular la magnetización (en pasos Monte Carlo)
-
-    Se guarda la imagen del estado inicial y luego los pasos se van grabando.
-    **Actualiza los contornos cada iteración.**
-
-    Devuelve:
-    - frames: lista de matrices de spin para cada frame del gif
-    - magnetizaciones: lista de valores de magnetización promedio
-    - pasos_MC_frames: pasos Monte Carlo correspondientes a los frames
-    - pasos_MC_mag: pasos Monte Carlo correspondientes a las magnetizaciones
-    """
-    s = crear_matriz_modificado(N)
-
-    # Inicializa listas para guardar frames y magnetizaciones
-    frames = []
-    pasos_MC_frames = []
-
-    magnetizaciones = []
-    pasos_MC_mag = []
-
-    for paso in range(pasos):
-        # Guardar estado para animación y medición
-        if generar_gif and (paso % intervalo_gif == 0):
-            frames.append(s[1:N + 1, 1:N + 1].copy())
-            pasos_MC_frames.append(paso)
-
-        if calcular_magnetizacion and (paso % intervalo_magnetizacion == 0):
-            mag = np.abs(np.sum(s[1:N + 1, 1:N + 1])) / (N * N)
-            magnetizaciones.append(mag)
-            pasos_MC_mag.append(paso)
-
-        # Bucle interno: N^2 intentos de cambio de spin
-        for _ in range(N * N):
-            x, y = puntoaleatorio(N)
-            p_val = P_modificado(s, x, y, T)
-            nuevo = est_prob(p_val, s, x, y)
-            if s[x, y] != nuevo:
-                s[x, y] = nuevo
-                # Actualización de contornos cada iteracion
-                s = actualizar_contornos_modificado(s, N)
-
-    # Guardar el último estado si no se guardó previamente (con verificación de lista vacía)
-    if generar_gif and (len(pasos_MC_frames) == 0 or pasos_MC_frames[-1] != pasos):
-        frames.append(s[1:N + 1, 1:N + 1].copy())
-        pasos_MC_frames.append(pasos)
-
-    if calcular_magnetizacion and (len(pasos_MC_mag) == 0 or pasos_MC_mag[-1] != pasos):
-        mag = np.abs(np.sum(s[1:N + 1, 1:N + 1])) / (N * N)
-        magnetizaciones.append(mag)
-        pasos_MC_mag.append(pasos)
-
-    return frames, magnetizaciones, pasos_MC_frames, pasos_MC_mag
 
 # -----------------------------
 # FUNCIONES PARA EL MODELO CLÁSICO
@@ -229,19 +169,7 @@ def P_clasico(s, n, m, T):
     E = 2 * s[n, m] * (s[n+1, m] + s[n-1, m] + s[n, m+1] + s[n, m-1])
     return min(1.0, np.exp(-E / T))
 
-def crear_matriz_clasico(N):
-    """
-    Crea una red de NxN spins aleatorios (valores +1 o -1) y añade bordes periódicos.
-    Se utiliza la forma clásica sin inicializar las esquinas.
-    """
-    red = np.where(np.random.rand(N, N) < 0.5, -1, 1)
-    web = np.zeros((N + 2, N + 2))
-    web[1:N + 1, 1:N + 1] = red
-    web[0, 1:N + 1] = red[N - 1, :]
-    web[N + 1, 1:N + 1] = red[0, :]
-    web[1:N + 1, 0] = red[:, N - 1]
-    web[1:N + 1, N + 1] = red[:, 0]
-    return web
+
 
 def actualizar_contornos_clasico(web, N):
     """
@@ -255,7 +183,7 @@ def actualizar_contornos_clasico(web, N):
     return web
 
 def ising_simulacion_clasico(N, T, pasos=100, generar_gif=True, intervalo_gif=1,
-                             calcular_magnetizacion=False, intervalo_magnetizacion=1):
+                             calcular_magnetizacion=False, intervalo_magnetizacion=1, seed=None):
     """
     Ejecuta la simulación del modelo clásico de Ising:
     - N: tamaño de la red NxN
@@ -274,7 +202,7 @@ def ising_simulacion_clasico(N, T, pasos=100, generar_gif=True, intervalo_gif=1,
     - magnetizaciones: lista de valores de magnetización promedio
     - (para mantener la consistencia, se devuelven también los pasos MC correspondientes)
     """
-    s = crear_matriz_clasico(N)
+    s = crear_matriz_toroidal(N, seed=seed)
 
     frames = []
     pasos_MC_frames = []
@@ -307,58 +235,6 @@ def ising_simulacion_clasico(N, T, pasos=100, generar_gif=True, intervalo_gif=1,
 
     return frames, magnetizaciones, pasos_MC_frames, pasos_MC_mag
 
-def ising_simulacion_clasico_iter(N, T, pasos=100, generar_gif=True, intervalo_gif=1,
-                             calcular_magnetizacion=False, intervalo_magnetizacion=1):
-    """
-    Ejecuta la simulación del modelo clásico de Ising:
-    - N: tamaño de la red NxN
-    - T: temperatura del sistema
-    - pasos: número de pasos Monte Carlo
-    - generar_gif: si True, guarda los estados intermedios para animación
-    - intervalo_gif: intervalo entre frames en el gif (en pasos Monte Carlo)
-    - calcular_magnetizacion: si True, calcula la magnetización en cada paso
-    - intervalo_magnetizacion: intervalo para calcular la magnetización (en pasos Monte Carlo)
-
-    IMPORTANTE: Se guarda la imagen del estado inicial y luego los pasos se van grabando.
-    **Actualiza los contornos cada iteración.**
-
-    Devuelve:
-    - frames: lista de matrices de spin para cada frame del gif
-    - magnetizaciones: lista de valores de magnetización promedio
-    - (para mantener la consistencia, se devuelven también los pasos MC correspondientes)
-    """
-    s = crear_matriz_clasico(N)
-
-    frames = []
-    pasos_MC_frames = []
-    magnetizaciones = []
-    pasos_MC_mag = []
-
-    for paso in range(pasos):
-        if generar_gif and (paso % intervalo_gif == 0):
-            frames.append(s[1:N+1, 1:N+1].copy())
-            pasos_MC_frames.append(paso)
-        if calcular_magnetizacion and (paso % intervalo_magnetizacion == 0):
-            mag = np.abs(np.sum(s[1:N+1, 1:N+1]))/(N*N)
-            magnetizaciones.append(mag)
-            pasos_MC_mag.append(paso)
-        for _ in range(N * N):
-            x, y = puntoaleatorio(N)
-            p_val = P_clasico(s, x, y, T)
-            nuevo = est_prob(p_val, s, x, y)
-            if s[x, y] != nuevo:
-                s[x, y] = nuevo
-                s = actualizar_contornos_clasico(s, N)
-
-    if generar_gif and (len(pasos_MC_frames) == 0 or pasos_MC_frames[-1] != pasos):
-        frames.append(s[1:N+1, 1:N+1].copy())
-        pasos_MC_frames.append(pasos)
-    if calcular_magnetizacion and (len(pasos_MC_mag) == 0 or pasos_MC_mag[-1] != pasos):
-        mag = np.abs(np.sum(s[1:N+1, 1:N+1]))/(N*N)
-        magnetizaciones.append(mag)
-        pasos_MC_mag.append(pasos)
-
-    return frames, magnetizaciones, pasos_MC_frames, pasos_MC_mag
 
 # -----------------------------
 # FUNCIONES DE VISUALIZACIÓN Y GUARDADO (COMUNES)
