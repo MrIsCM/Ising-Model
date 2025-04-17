@@ -59,7 +59,6 @@ class IsingModel:
         self.web = rng.choice(valores, size=(self.N, self.N), p=[p, 1-p])
         self.web = self.web.astype(np.int8)  # Asegura que los valores son enteros de 8 bits
 
-
     def calcular_probabilidad(self, i, j):
         """
         Calcula la probabilidad de que un espín en la posición (i, j) cambie de estado.
@@ -115,6 +114,42 @@ class IsingModel:
 
         return energy / 2  # Divido entre 2 porque cada interaccion se cuenta dos veces
     
+    def precomputar_vecinos_cercanos(self):
+        """
+        Precomputa los vecinos más cercanos para cada espín en la red.
+        ---------------------------------------------------------------
+        Esto es más eficiente para simulaciones largas (muchos pasos Monte Carlo).
+        """
+        N = self.N
+        vecinos_cercanos = {}
+        for i in range(N):
+            for j in range(N):
+                vecinos_cercanos[(i, j)] = [
+                    ((i+1)%N, j),
+                    ((i-1)%N, j),
+                    (i, (j+1)%N),
+                    (i, (j-1)%N)
+                ]
+        self.vecinos_nn = vecinos_cercanos
+
+
+    def precomputar_vecinos_diagonales(self):
+        """
+        Precomputa los vecinos de siguiente nivel para cada espín en la red.
+        ---------------------------------------------------------------
+        Esto es más eficiente para simulaciones largas (muchos pasos Monte Carlo).
+        """
+        N = self.N
+        vecinos_diagonales = {}
+        for i in range(N):
+            for j in range(N):
+                vecinos_diagonales[(i, j)] = [
+                    ((i+1)%N, (j+1)%N),
+                    ((i+1)%N, (j-1)%N),
+                    ((i-1)%N, (j+1)%N),
+                    ((i-1)%N, (j-1)%N)
+                ]
+        self.vecinos_nnn = vecinos_diagonales
 
     def simular(self, pasos_MC=1000, generar_gif=False, pasos_muestreo_frames=100, generar_imagenes=True, n_imagenes=5, espaciado_imagenes='lineal', calcular_magnetizacion=True, pasos_muestreo_magnetizacion=100, calcular_energia=False, pasos_muestreo_energia=10):
 
@@ -352,8 +387,7 @@ class IsingModel:
         # Guarda el GIF
         file_path = dir_path / nombre
         imageio.mimsave(file_path, images, duration=intervalo/1000)
-
-    
+ 
 
     def crear_gif_pil(self, nombre='ising_ultrafast.gif', intervalo=100, dir_path=None):
         """
@@ -420,7 +454,6 @@ class IsingModel:
         file_path = dir_path / f"{nombre}_N{self.N}_T{self.T}.txt"
         data = np.column_stack((self.pasos_magnetizaciones, self.magnetizaciones))
         np.savetxt(file_path, data, header="Pasos Monte Carlo\tMagnetización", fmt="%d\t%.6f")
-
 
     def guardar_energia(self, nombre='energia', dir_path=None):
         """
