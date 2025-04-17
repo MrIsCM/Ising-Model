@@ -13,7 +13,7 @@ params_clasico = {
     'T' : 1.0,
     'J1' : 1.0,
     'J2' : 0.0,
-    'SEED' : SEED,
+    'seed' : SEED,
     'test_mode' : True
 }
 
@@ -22,43 +22,36 @@ params_mod = params_clasico.copy()
 params_mod['J2'] = 2.0
 
 # Aqui defines el modelo
-modelo_clasico = IsingModel(**params_clasico)   #este es el clasico
+# modelo_clasico = IsingModel(**params_clasico)   #este es el clasico
 modelo_mod = IsingModel(**params_mod)           #este es el modificado
 
-# Inicia las redes: clasica y modificada
-modelo_clasico.inicia_red()
-modelo_mod.inicia_red()
+# Warmup
+modelo_mod.warm_up()
 
 # Aqui configuras los parametros de la simulacion
 params_simulacion = {
     'pasos_MC' : 250,
     'generar_imagenes' : True,
     'n_imagenes' : 5,
-    'espaciado_imagenes' : 'lineal',
+    'espaciado_imagenes' : 'logaritmico',
     # Si quieres el gif tienes que descomentar las dos siguientes lineas
     # Y otras mas abajo indicadas igual.
-    # 'generar_gif' : True,
-    # 'pasos_muestreo_frames' : 10,
+    'generar_gif' : True,
+    'pasos_muestreo_frames' : 10,
     'calcular_magnetizacion' : True,
     'pasos_muestreo_magnetizacion' : 5,
 }
 
+
 # Ejecuta la simulacion
-modelo_clasico.simular(**params_simulacion)
+# modelo_clasico.simular(**params_simulacion)
 modelo_mod.simular(**params_simulacion)
 
-# Configura los paths (de momento puede dar algun error, tengo que cambiar un par de cosas)
-modelo_clasico.configurar_paths()
-modelo_mod.configurar_paths(
-    gif_dir='mod/gif',
-    imagenes_dir='mod/imagenes',
-    magnetizaciones_dir='mod/magnetizacion',
-)
 
 
 # Guardar cosas del modelo clasico
-modelo_clasico.guardar_imagenes()
-modelo_clasico.graficar_magnetizacion()
+# modelo_clasico.guardar_imagenes()
+# modelo_clasico.graficar_magnetizacion()
 # Si quieres el gif, descomenta la siguiente linea
 # modelo_clasico.crear_gif() 
 
@@ -67,4 +60,4 @@ modelo_clasico.graficar_magnetizacion()
 modelo_mod.guardar_imagenes()
 modelo_mod.graficar_magnetizacion()
 # Igual que antes, si quieres el gif, descomenta la siguiente linea
-# modelo_mod.crear_gif()
+modelo_mod.crear_gif()

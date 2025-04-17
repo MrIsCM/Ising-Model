@@ -4,9 +4,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 
+from scipy.ndimage import convolve
+
 class IsingModel:
 
-    def __init__(self, N, T, J1, J2, test_mode=False, SEED=None):
+    def __init__(self, N, T, J1, J2, test_mode=False, seed=None):
         """
         Inicializa una instancia del modelo de Ising.
         ----------------------------------------------
@@ -26,7 +28,17 @@ class IsingModel:
 
         # Variables de control de la simulación
         self.test_mode = test_mode
-        self.SEED = SEED
+        self.SEED = seed
+
+        self.kernel_NN = np.array([
+            [0, 1, 0],
+            [1, 0, 1],
+            [0, 1, 0]])
+        
+        self.kernel_NNN = np.array([
+            [1, 0, 1],
+            [0, 0, 0],
+            [1, 0, 1]])
 
 
     def inicia_red(self, valores=[1, -1], padding_width=1, mode='wrap'):
@@ -40,6 +52,7 @@ class IsingModel:
         """
         rng = np.random.default_rng(self.SEED)
         self.web = rng.choice(valores, size=(self.N, self.N))
+
 
 
     def calcular_probabilidad(self, i, j):
@@ -67,15 +80,40 @@ class IsingModel:
         )
 
         # Calculo del cambio de energía
-        E = 2 * s[i, j] * (self.J1 * vecinos_inmediatos + self.J2 * vecinos_diagonales)
+        dE = 2 * s[i, j] * (self.J1 * vecinos_inmediatos + self.J2 * vecinos_diagonales)
 
-        return min(1, np.exp(-E / self.T))
+        return min(1, np.exp(-dE / self.T))
 
+    def calcular_energia(self):
+        """
+        Calcula la energía total del sistema basado en las interacciones 
+        de los vecinos más cercanos y los vecinos de siguiente nivel.
+        La energía se calcula utilizando convoluciones con dos kernels:
+        - `kern_close_neigh`: Representa las interacciones con los vecinos más cercanos.
+        - `kern_next_neigh`: Representa las interacciones con los vecinos de siguiente nivel.
+        La fórmula para la energía total es:
+            E = -J1 * Σ(web * energy_close_neigh) - J2 * Σ(web * energy_next_neigh)
+        donde:
+            - `web` es la configuración actual del sistema.
+            - `J1` y `J2` son constantes que representan la intensidad de las interacciones con los vecinos más cercanos y los vecinos de siguiente nivel, respectivamente.
+        Returns:
+            - float: Energía total del sistema, dividida entre 2 para evitar contar las interacciones dos veces.
+        """
 
-    def simular(self, pasos_MC=1000, generar_gif=False, pasos_muestreo_frames=100, generar_imagenes=True, n_imagenes=5, espaciado_imagenes='lineal', calcular_magnetizacion=True, pasos_muestreo_magnetizacion=100):
+        kern_close_neigh = self.kernel_NN
+        kern_next_neigh = self.kernel_NNN
         
-        # Inicializa la red
-        self.inicia_red()
+        # Convolucion para obtener la energia total
+        energy_close_neigh = convolve(self.web, kern_close_neigh, mode='wrap')
+        energy_next_neigh = convolve(self.web, kern_next_neigh, mode='wrap')
+
+        # Energia total
+        energy = -self.J1 * np.sum(self.web * energy_close_neigh) - self.J2 * np.sum(self.web * energy_next_neigh)
+
+        return energy / 2  # Divido entre 2 porque cada interaccion se cuenta dos veces
+
+
+    def simular(self, pasos_MC=1000, generar_gif=False, pasos_muestreo_frames=100, generar_imagenes=True, n_imagenes=5, espaciado_imagenes='lineal', calcular_magnetizacion=True, pasos_muestreo_magnetizacion=100, calcular_energia=False):
 
         # Generador de números aleatorios
         rng = np.random.default_rng(seed=self.SEED)
@@ -102,6 +140,10 @@ class IsingModel:
             self.magnetizaciones = None
             self.pasos_magnetizaciones = None
 
+        # Energia
+        if calcular_energia:
+            self.energia = np.empty(pasos_MC, dtype=float)
+
         # Arrays para las imagenes
         if generar_imagenes:
             self.imagenes = np.empty((n_imagenes, self.N, self.N), dtype=int)
@@ -109,7 +151,7 @@ class IsingModel:
             if espaciado_imagenes == 'lineal':
                 pasos_imagenes = np.linspace(0, pasos_MC, n_imagenes, dtype=int)
             elif espaciado_imagenes == 'logaritmico':
-                pasos_imagenes = np.logspace(0, pasos_MC, n_imagenes, dtype=int)
+                pasos_imagenes = np.logspace(0, np.log10(pasos_MC), n_imagenes, dtype=int)
             aux_idx = 0
         else:
             self.imagenes = None
@@ -133,6 +175,9 @@ class IsingModel:
                     self.imagenes[aux_idx] = self.web.copy()
                     self.pasos_imagenes[aux_idx] = paso
                     aux_idx += 1
+
+            if calcular_energia:
+                self.energia[paso] = self.calcular_energia()
         
             
             # Genera los numeros aleatorios para TODO el paso Monte Carlo
@@ -168,7 +213,8 @@ class IsingModel:
             self.imagenes[-1] = self.web.copy()
             self.pasos_imagenes[-1] = pasos_MC
 
-    def configurar_paths(self, gif_dir='gifs', imagenes_dir='images', magnetizaciones_dir='magnetizaciones'):
+
+    def configurar_paths(self, data='data', gif_dir='gifs', imagenes_dir='images', magnetizaciones_dir='magnetizaciones'):
         """
         Configura los directorios para guardar los resultados de la simulación.
         - Parámetros:
@@ -181,6 +227,8 @@ class IsingModel:
             test_dir = Path(f'test_N{self.N}_T{self.T}')
             test_dir.mkdir(exist_ok=True, parents=True)
 
+            data_dir = test_dir / data
+            data_dir.mkdir(exist_ok=True, parents=True)
             gif_dir = test_dir / gif_dir
             gif_dir.mkdir(exist_ok=True, parents=True)
             imagenes_dir = test_dir / imagenes_dir
@@ -191,6 +239,9 @@ class IsingModel:
         else:
             resultados_dir = Path(f'resultados_N{self.N}_T{self.T}')
             resultados_dir.mkdir(exist_ok=True, parents=True)
+
+            data_dir = resultados_dir / data
+            data_dir.mkdir(exist_ok=True, parents=True)
             gif_dir = resultados_dir / gif_dir
             gif_dir.mkdir(exist_ok=True, parents=True)
             imagenes_dir = resultados_dir / imagenes_dir
@@ -198,24 +249,35 @@ class IsingModel:
             magnetizaciones_dir = resultados_dir / magnetizaciones_dir
             magnetizaciones_dir.mkdir(exist_ok=True, parents=True)
             
+        self.paths = {
+            'data': data_dir,
+            'gif': gif_dir,
+            'imagenes': imagenes_dir,
+            'magnetizaciones': magnetizaciones_dir
+        }
 
-        self.gif_dir = gif_dir
-        self.imagenes_dir = imagenes_dir
-        self.magnetizaciones_dir = magnetizaciones_dir
+
+    def warm_up(self):
+        """
+        Realiza un 'calentamiento' del modelo para establecer los paths correspondientes, inicializar la red. 
+        """
+
+        self.configurar_paths()
+        self.inicia_red()
 
 
-    def crear_gif(self, nombre='ising.gif', intervalo=100, dpi=150, dir_path=None):
+    def crear_gif(self, nombre='ising.gif', intervalo=100, figsize=(10,6), dpi=150, dir_path=None):
 
         """
         Crea un archivo .gif animado desde la lista de fotogramas (matrices de spin).
         """
         if dir_path is None:
-            dir_path = self.gif_dir
+            dir_path = self.paths['gif']
 
         frames = self.frames
         custom_cmap = plt.get_cmap('coolwarm')
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=figsize)
         ax.axis("off")
         im = ax.imshow(frames[0], cmap=custom_cmap, vmin=-1, vmax=1)
 
@@ -229,31 +291,57 @@ class IsingModel:
         plt.close(fig)
 
         
-    def guardar_imagenes(self, nombre='ising', dpi=150, dir_path=None):
+    def guardar_imagenes(self, nombre='ising', figsize=(10,6), dpi=150, dir_path=None):
         """
         Guarda las imágenes de la red en el directorio especificado.
         """
         if dir_path is None:
-            dir_path = self.imagenes_dir
+            dir_path = self.paths['imagenes']
 
         for i, imagen in enumerate(self.imagenes):
             file_path = dir_path / f"{nombre}_N{self.N}_T{self.T}_{i+1}.png"
-            plt.imsave(file_path, imagen, cmap='coolwarm', vmin=-1, vmax=1, dpi=dpi)
-            plt.close()
+            fig, ax = plt.subplots(figsize=figsize)
+            ax.imshow(imagen, cmap='coolwarm', vmin=-1, vmax=1)
+            ax.set_title(f"Paso {self.pasos_imagenes[i]}")
+            fig.savefig(file_path, dpi=dpi)
+            plt.close(fig)
 
     def graficar_magnetizacion(self, nombre='curva_magnetizacion.png', dir_path=None):
         """
         Grafica la magnetización a lo largo de los pasos de Monte Carlo.
         """
         if dir_path is None:
-            dir_path = self.magnetizaciones_dir
+            dir_path = self.paths['magnetizaciones']
 
-        plt.figure(figsize=(10, 6))
-        plt.plot(self.pasos_magnetizaciones, self.magnetizaciones, marker='o', linestyle='--', color='b')
-        plt.title(f'Magnetización vs Pasos MC (N={self.N}, T={self.T})')
-        plt.xlabel('Pasos Monte Carlo')
-        plt.ylabel('Magnetización')
-        plt.grid()
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.plot(self.pasos_magnetizaciones, self.magnetizaciones, marker='o', linestyle='--', color='b')
+        ax.set_title(f'Magnetización vs Pasos MC (N={self.N}, T={self.T})')
+        ax.set_xlabel('Pasos Monte Carlo')
+        ax.set_ylabel('Magnetización')
+        ax.grid()
         file_path = dir_path / nombre
-        plt.savefig(file_path, dpi=150)
-        plt.close()
+        fig.savefig(file_path, dpi=150)
+        plt.close(fig)
+
+    def guardar_magnetizacion(self, nombre='magnetizacion', dir_path=None):
+        """
+        Guarda la magnetización en un archivo de texto.
+        """
+        if dir_path is None:
+            dir_path = self.paths['data']
+
+        file_path = dir_path / f"{nombre}_N{self.N}_T{self.T}.txt"
+        data = np.column_stack((self.pasos_magnetizaciones, self.magnetizaciones))
+        np.savetxt(file_path, data, header="Pasos Monte Carlo\tMagnetización", fmt="%d\t%.6f")
+
+
+    def guardar_energia(self, nombre='energia', dir_path=None):
+        """
+        Guarda la energía en un archivo de texto.
+        """
+        if dir_path is None:
+            dir_path = self.paths['data']
+
+        file_path = dir_path / f"{nombre}_N{self.N}_T{self.T}.txt"
+        data = np.column_stack((np.arange(len(self.energia)), self.energia))
+        np.savetxt(file_path, data, header="Pasos Monte Carlo\tEnergia", fmt="%d\t%.6f")
