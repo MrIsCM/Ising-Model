@@ -111,7 +111,7 @@ class IsingModel:
         energy = -self.J1 * np.sum(self.web * energy_close_neigh) - self.J2 * np.sum(self.web * energy_next_neigh)
 
         return energy / 2  # Divido entre 2 porque cada interaccion se cuenta dos veces
-
+    
 
     def simular(self, pasos_MC=1000, generar_gif=False, pasos_muestreo_frames=100, generar_imagenes=True, n_imagenes=5, espaciado_imagenes='lineal', calcular_magnetizacion=True, pasos_muestreo_magnetizacion=100, calcular_energia=False):
 
@@ -265,6 +265,19 @@ class IsingModel:
         self.configurar_paths()
         self.inicia_red()
 
+    def calcular_calor_especifico(self, usar_ultimos_pasos=100):
+        """
+        Calcula el calor especifico mediante la desviación estandar de la energía.
+        """
+        if self.energia is None:
+            raise ValueError("No se ha calculado la energía. Ejecuta la simulación primero.")
+
+
+        E_std = np.std(self.energia[-usar_ultimos_pasos:])
+
+        C = E_std**2 / (self.N * self.N * self.T**2)
+        self.C = C
+        return C
 
     def crear_gif(self, nombre='ising.gif', intervalo=100, figsize=(10,6), dpi=150, dir_path=None):
 
