@@ -87,6 +87,21 @@ class IsingModel:
         dE = 2 * s[i, j] * (self.J1 * vecinos_inmediatos + self.J2 * vecinos_diagonales)
 
         return min(1, np.exp(-dE / self.T))
+    
+    def calcular_dE_precomp(self, i, j):
+        
+        S_nn = 0
+        S_nnn = 0
+
+        for vecino in self.vecinos_nn[(i,j)]:
+            S_nn += self.web[vecino]
+        
+        for vecino in self.vecinos_nnn[(i,j)]:
+            S_nnn += self.web[vecino]
+
+        dE = 2 * (self.J1 * S_nn + self.J2 * S_nnn)
+
+        return dE
 
     def calcular_energia(self):
         """
@@ -132,7 +147,6 @@ class IsingModel:
                 ]
         self.vecinos_nn = vecinos_cercanos
 
-
     def precomputar_vecinos_diagonales(self):
         """
         Precomputa los vecinos de siguiente nivel para cada espín en la red.
@@ -151,7 +165,44 @@ class IsingModel:
                 ]
         self.vecinos_nnn = vecinos_diagonales
 
-    def simular(self, pasos_MC=1000, generar_gif=False, pasos_muestreo_frames=100, generar_imagenes=True, n_imagenes=5, espaciado_imagenes='lineal', calcular_magnetizacion=True, pasos_muestreo_magnetizacion=100, calcular_energia=False, pasos_muestreo_energia=10):
+    def precomputar_exp_dE(self):
+        """
+        Precomputa la exponencial de la variación de energía para cada espín en la red.
+        ---------------------------------------------------------------
+        Esto es más eficiente para simulaciones largas (muchos pasos Monte Carlo).
+        """
+        N = self.N
+        exp_dE = {}
+        possible_sums = [-4, -2, 0, 2, 4]
+        for S_nn in possible_sums:
+            for S_nnn in possible_sums:
+                dE = 2 * (self.J1 * S_nn + self.J2 * S_nnn)
+                exp_dE[dE] = np.exp(-dE / self.T)
+
+        self.exp_dE = exp_dE
+
+    def compute_dE_all(self):
+        dE = (
+            2 * self.web
+            * (
+                self.J1 * (
+                    np.roll(self.web, 1, axis=0)
+                    + np.roll(self.web, -1, axis=0)
+                    + np.roll(self.web, 1, axis=1)
+                    + np.roll(self.web, -1, axis=1)
+                )
+                + self.J2 * (
+                    np.roll(self.web, (1, 1), axis=(0, 1))
+                    + np.roll(self.web, (1, -1), axis=(0, 1))
+                    + np.roll(self.web, (-1, 1), axis=(0, 1))
+                    + np.roll(self.web, (-1, -1), axis=(0, 1))
+                )
+            )
+        )
+
+        return dE
+
+    def simular(self, pasos_MC=1000, generar_gif=False, pasos_muestreo_frames=100, generar_imagenes=True, n_imagenes=5, espaciado_imagenes='log', calcular_magnetizacion=True, pasos_muestreo_magnetizacion=100, calcular_energia=False, pasos_muestreo_energia=10):
 
         # Generador de números aleatorios
         rng = np.random.default_rng(seed=self.SEED)
@@ -193,7 +244,7 @@ class IsingModel:
             self.pasos_imagenes = np.empty(n_imagenes, dtype=int)
             if espaciado_imagenes == 'lineal':
                 pasos_imagenes = np.linspace(0, pasos_MC, n_imagenes, dtype=int)
-            elif espaciado_imagenes == 'logaritmico':
+            elif espaciado_imagenes == 'log':
                 pasos_imagenes = np.logspace(0, np.log10(pasos_MC), n_imagenes, dtype=int)
             aux_idx = 0
         else:
@@ -261,7 +312,140 @@ class IsingModel:
             self.energia[-1] = self.calcular_energia()
             self.pasos_energia[-1] = pasos_MC
 
+    def simular_precompute(self, pasos_MC=1000, generar_gif=False, pasos_muestreo_frames=100, generar_imagenes=True, n_imagenes=5, espaciado_imagenes='log', calcular_magnetizacion=True, pasos_muestreo_magnetizacion=100, calcular_energia=False, pasos_muestreo_energia=10):
 
+        # Generador de números aleatorios
+        rng = np.random.default_rng(seed=self.SEED)
+
+        # Pre-aloca espacio para los resultados en numpy arrays (mas eficiente)
+        # Si no se quiere guardar algun resultado, se inicializan sus arrays como None
+        # esto es necesario por consistencia en el return
+
+        # Arrays para los Gifs
+        if generar_gif:
+            n_frames = pasos_MC // pasos_muestreo_frames + 1
+            self.frames = np.empty((n_frames, self.N, self.N), dtype=np.int8)
+            self.pasos_frames = np.empty(n_frames, dtype=int)
+        else:
+            self.frames = None
+            self.pasos_frames = None
+
+        # Arrays para las magnetizaciones
+        if calcular_magnetizacion:
+            n_magnetizaciones = pasos_MC // pasos_muestreo_magnetizacion + 1
+            self.magnetizaciones = np.empty(n_magnetizaciones, dtype=float)
+            self.pasos_magnetizaciones = np.empty(n_magnetizaciones, dtype=int)
+        else:
+            self.magnetizaciones = None
+            self.pasos_magnetizaciones = None
+
+        # Energia
+        if calcular_energia:
+            n_energia = pasos_MC // pasos_muestreo_energia + 1
+            self.energia = np.empty(n_energia, dtype=float)
+            self.pasos_energia = np.empty(n_energia, dtype=int)
+        else:
+            self.energia = None
+            self.pasos_energia = None
+
+        # Arrays para las imagenes
+        if generar_imagenes:
+            self.imagenes = np.empty((n_imagenes, self.N, self.N), dtype=np.int8)
+            self.pasos_imagenes = np.empty(n_imagenes, dtype=int)
+            if espaciado_imagenes == 'lineal':
+                pasos_imagenes = np.linspace(0, pasos_MC, n_imagenes, dtype=int)
+            elif espaciado_imagenes == 'log':
+                pasos_imagenes = np.logspace(0, np.log10(pasos_MC), n_imagenes, dtype=int)
+            aux_idx = 0
+        else:
+            self.imagenes = None
+            self.pasos_imagenes = None
+
+
+        # Simulacion
+        for paso in range(pasos_MC):
+            # Guarda el estado inicial
+            if generar_gif and paso % pasos_muestreo_frames == 0:
+                self.frames[paso // pasos_muestreo_frames] = self.web.copy()
+                self.pasos_frames[paso // pasos_muestreo_frames] = paso
+
+            if calcular_magnetizacion and paso % pasos_muestreo_magnetizacion == 0:
+                magnetizacion = np.sum(self.web) / (self.NN)
+                self.magnetizaciones[paso // pasos_muestreo_magnetizacion] = magnetizacion
+                self.pasos_magnetizaciones[paso // pasos_muestreo_magnetizacion] = paso
+
+            if generar_imagenes:
+                if paso in pasos_imagenes:
+                    self.imagenes[aux_idx] = self.web.copy()
+                    self.pasos_imagenes[aux_idx] = paso
+                    aux_idx += 1
+
+            if calcular_energia and paso % pasos_muestreo_energia == 0:
+                self.energia[paso // pasos_muestreo_energia] = self.calcular_energia()
+                self.pasos_energia[paso // pasos_muestreo_energia] = paso
+        
+            
+
+            # Genera tambien los valores de aceptacion para cada espin
+            aceptacion = rng.random(size=(self.N, self.N))
+
+            # Obten los valores de dE para cada espin
+            dE = self.compute_dE_all()
+
+            # Genera spins aleatorios a evaluar
+            i_idx = rng.integers(0, self.N, size=self.NN)
+            j_idx = rng.integers(0, self.N, size=self.NN)
+
+            selected_idx_mask = np.zeros((self.N, self.N), dtype=bool)
+            selected_idx_mask[i_idx, j_idx] = True
+
+            # Divide la red como un tablero de ajedrez para mejorar la convergencia
+            # Alterna entre dos subredes (blancas y negras)
+            mask_impares = (np.indices((self.N, self.N)).sum(axis=0) % 2 == 0)
+            mask_pares = ~mask_impares
+
+            for update_mask in [mask_impares, mask_pares]:
+
+                # Los indices generados son los que se van a evaluar
+                update_mask = np.logical_and(update_mask, selected_idx_mask)
+
+                # Crear máscara de aceptación
+                accept_mask = (dE <= 0) | (aceptacion < np.vectorize(self.exp_dE.get)(dE))
+
+                final_mask = np.logical_and(update_mask, accept_mask)
+
+                # Cambia los espines que cumplen la condición
+                self.web[final_mask] *= -1
+            
+
+        # Guardar (si necesario) el estado final
+
+        if generar_gif and (len(self.frames) == 0 or self.pasos_frames[-1] != pasos_MC):
+            self.frames[-1] = self.web.copy()
+            self.pasos_frames[-1] = pasos_MC
+
+        if calcular_magnetizacion and (len(self.magnetizaciones) == 0 or self.pasos_magnetizaciones[-1] != pasos_MC):
+            magnetizacion = np.sum(self.web) / (self.NN)
+            self.magnetizaciones[-1] = magnetizacion
+            self.pasos_magnetizaciones[-1] = pasos_MC
+
+        if generar_imagenes and (len(self.imagenes) == 0 or self.pasos_imagenes[-1] != pasos_MC):
+            self.imagenes[-1] = self.web.copy()
+            self.pasos_imagenes[-1] = pasos_MC
+
+        if calcular_energia and (len(self.energia) == 0 or self.pasos_energia[-1] != pasos_MC):
+            self.energia[-1] = self.calcular_energia()
+            self.pasos_energia[-1] = pasos_MC
+
+
+    def precompute_all(self):
+        """
+        Precomputa los vecinos más cercanos y de siguiente nivel para cada espín en la red.
+        Esto es más eficiente para simulaciones largas (muchos pasos Monte Carlo).
+        """
+        self.precomputar_vecinos_cercanos()
+        self.precomputar_vecinos_diagonales()
+        self.precomputar_exp_dE()
 
     def configurar_paths(self, data='data', gif_dir='gifs', imagenes_dir='images', magnetizaciones_dir='magnetizaciones'):
         """
@@ -305,7 +489,6 @@ class IsingModel:
             'magnetizaciones': magnetizaciones_dir
         }
 
-
     def warm_up(self, path_args=None, init_args=None):
         """
         Realiza un 'calentamiento' del modelo para establecer los paths correspondientes, inicializar la red. 
@@ -335,6 +518,9 @@ class IsingModel:
         self.C = C
         return C
 
+
+
+
     def crear_gif(self, nombre='ising.gif', intervalo=100, figsize=(10,6), dpi=150, dir_path=None):
 
         """
@@ -358,8 +544,7 @@ class IsingModel:
         ani = FuncAnimation(fig, update, frames=len(frames), interval=intervalo, blit=True)
         ani.save(file_path, dpi=dpi, writer=PillowWriter(fps=1000//intervalo))
         plt.close(fig)
-
-        
+      
     def crear_gif_rapido(self, nombre='ising_fast.gif', intervalo=100, dir_path=None):
         """
         Crea un archivo GIF animado usando imageio, mucho más rápido que matplotlib.
@@ -387,7 +572,6 @@ class IsingModel:
         # Guarda el GIF
         file_path = dir_path / nombre
         imageio.mimsave(file_path, images, duration=intervalo/1000)
- 
 
     def crear_gif_pil(self, nombre='ising_ultrafast.gif', intervalo=100, dir_path=None):
         """
@@ -410,7 +594,6 @@ class IsingModel:
         images[0].save(
             file_path, save_all=True, append_images=images[1:], duration=intervalo, loop=0
         )
-
 
     def guardar_imagenes(self, nombre='ising', figsize=(10,6), dpi=150, dir_path=None):
         """
