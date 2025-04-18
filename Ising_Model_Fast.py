@@ -66,11 +66,8 @@ def compute_specific_heat(energy_array, N, T):
     - float
         Specific heat per spin.
     """
-
-    E_mean = np.mean(energy_array)
-    E2_mean = np.mean(energy_array**2)
-
-    C = (E2_mean - E_mean**2) / (N**2 * T)
+    
+    C = np.var(energy_array) / (T * N*N)
 
     return C
 
@@ -329,83 +326,37 @@ def create_gif(images, figures_dir, filename="simulation.gif", fps=10, scale=1, 
         print(f"GIF saved as {file_path}")
 
 
-def save_energy_dat(energy, data_dir, filename="energy.dat", verbose=0):
+def save_energy_data(energy, data_dir, filename="energy.dat", verbose=0):
     
     file_path = data_dir / filename
     np.savetxt(file_path, energy, header="Energy values", fmt='%.6f')
     if verbose > 0:
         print(f"Energy data saved at {file_path}")
 
-def save_magnetization_dat(magnetization, data_dir, filename="magnetization.dat", verbose=0):
+def save_magnetization_data(magnetization, data_dir, filename="magnetization.dat", verbose=0):
         
         file_path = data_dir / filename
         np.savetxt(file_path, magnetization, header="Magnetization values", fmt='%.6f')
         if verbose > 0:
             print(f"Magnetization data saved at {file_path}")
 
-if __name__ == "__main__":
-    # Parameters
-    N = 20  # Lattice size
-    T = 2.5  # Temperature
-    J1 = 0.5  # Nearest-neighbor interaction
-    J2 = 1.0  # Next-nearest-neighbor interaction
-    MC_steps = 10000  # Number of Monte Carlo steps
-    save_images = True
-    image_spacing = list(range(0, MC_steps, 100))  # Save every 100 steps
-    verbose = 1
-    scale = 8 # Scale factor for GIF images
-    cmap = 'plasma'
 
-    # Initialize lattice with random spins
-    lattice = np.random.choice([-1, 1], size=(N, N))
-
-    # Calculate initial energy
-    initial_energy = get_energy(lattice, N, J1, J2)
-
-    # Create directory structure
-    paths_dict = path_configuration(N, T, verbose=verbose)
-
-    simulation_params = {
-        "N": N,
-        "T": T,
-        "J1": J1,
-        "J2": J2,
-        "MC_steps": MC_steps,
-        "save_images": save_images,
-        "image_spacing": image_spacing,
-        "verbose": verbose
-    }
-
-    # Run Metropolis algorithm
-    net_spins, net_energy, images = metropolis(lattice=lattice, energy=initial_energy,
-                                                **simulation_params)
-
-    # Print specific heat
-    C = compute_specific_heat(net_energy, N, T)
+def save_lattice_data(lattice, data_dir, filename="lattice.dat", verbose=0):
+    """
+    Save the lattice configuration to a file.
+    Parameters:
+    -----------
+    - lattice : numpy.ndarray
+        The lattice configuration to save.
+    - data_dir : str
+        Directory where the file will be saved.
+    - filename : str, optional
+        Name of the output file (default is "lattice.dat").
+    - verbose : int, optional
+        Verbosity level for logging information (default is 0).
+    """
+    
+    file_path = data_dir / filename
+    np.savetxt(file_path, lattice, header="Lattice configuration", fmt='%d')
     if verbose > 0:
-        print(f"Specific heat per spin: {C}")
-
-    # Save GIF if images were generated
-    if save_images and images is not None:
-        create_gif(images, paths_dict['figures'], filename="simulation.gif", fps=10, scale=scale, cmap=cmap, verbose=verbose)
-
-    # Save data
-    save_energy_dat(net_energy, paths_dict['data'], filename="energy.dat", verbose=verbose)
-    save_magnetization_dat(net_spins, paths_dict['data'], filename="magnetization.dat", verbose=verbose)
-
-    # Plot results
-    plt.figure(figsize=(10, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(net_spins)
-    plt.title("Net Magnetization")
-    plt.xlabel("MC Steps")
-    plt.ylabel("Magnetization")
-
-    plt.subplot(1, 2, 2)
-    plt.plot(net_energy)
-    plt.title("Energy")
-    plt.xlabel("MC Steps")
-    plt.ylabel("Energy")
-
-    plt.tight_layout()
-    plt.show()
+        print(f"Lattice configuration saved at {file_path}")
