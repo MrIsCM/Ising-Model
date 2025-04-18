@@ -217,9 +217,11 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
         net_spins[t] = web.sum()/(N**2)
         net_energy[t] = energy
 
-    return net_spins, net_energy, images, web[-1]
+        last_config = web.copy()
 
-def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='figures', verbose=0):
+    return net_spins, net_energy, images, last_config
+
+def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='figures', images_dir='images', verbose=0):
     """
     Creates a directory structure for storing simulation data and figures.
     Parameters:
@@ -236,6 +238,8 @@ def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='fig
         The name of the subdirectory for storing data (default is 'data').
     figures_dir : str, optional
         The name of the subdirectory for storing figures (default is 'figures').
+    images_dir : str, optional
+        The name of the subdirectory for storing images (default is 'images').
     verbose : int, optional
         The verbosity level for logging messages:
         - 0: No output.
@@ -267,22 +271,26 @@ def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='fig
     # Sub folders
     data_dir = parent_dir / data_dir
     figures_dir = parent_dir / figures_dir
+    images_dir = parent_dir / images_dir
     if verbose > 1:
         print(f"Creating data folder")
         print(f"Creating figures folder")
+        print(f"Creating images folder")
     data_dir.mkdir(parents=True, exist_ok=True)
     figures_dir.mkdir(parents=True, exist_ok=True)
+    images_dir.mkdir(parents=True, exist_ok=True)
 
     paths_dict = {
         "parent": parent_dir,
         "data": data_dir,
-        "figures": figures_dir
+        "figures": figures_dir,
+        "images": images_dir
     }
 
     return paths_dict
 
 
-def create_gif(images, figures_dir, filename="simulation.gif", fps=10, scale=1, cmap="gray", color_map=None, verbose=True):
+def create_gif(images, save_dir, filename="simulation.gif", fps=10, scale=1, cmap="gray", color_map=None, verbose=True):
     """
     Create a GIF from a list of 2D numpy arrays.
 
@@ -296,7 +304,7 @@ def create_gif(images, figures_dir, filename="simulation.gif", fps=10, scale=1, 
     duration = len(images) / fps
 
     # Create writer
-    file_path = figures_dir / filename
+    file_path = save_dir / filename
     with imageio.get_writer(file_path, mode="I", duration=duration / len(images)) as writer:
         for img in images:
             # Normalize lattice values to 0-255
@@ -322,23 +330,23 @@ def create_gif(images, figures_dir, filename="simulation.gif", fps=10, scale=1, 
         print(f"GIF saved as {file_path}")
 
 
-def save_energy_data(energy, data_dir, filename="energy.dat", verbose=0):
+def save_energy_data(energy, save_dir, filename="energy.dat", verbose=0):
     
-    file_path = data_dir / filename
+    file_path = save_dir / filename
     np.savetxt(file_path, energy, header="Energy values", fmt='%.6f')
     if verbose > 0:
         print(f"Energy data saved at {file_path}")
 
 
-def save_magnetization_data(magnetization, data_dir, filename="magnetization.dat", verbose=0):
+def save_magnetization_data(magnetization, save_dir, filename="magnetization.dat", verbose=0):
         
-        file_path = data_dir / filename
+        file_path = save_dir / filename
         np.savetxt(file_path, magnetization, header="Magnetization values", fmt='%.6f')
         if verbose > 0:
             print(f"Magnetization data saved at {file_path}")
 
 
-def save_lattice_data(lattice, data_dir, filename="lattice.dat", verbose=0):
+def save_lattice_data(lattice, save_dir, filename="lattice.dat", verbose=0):
     """
     Save the lattice configuration to a file.
     Parameters:
@@ -353,7 +361,7 @@ def save_lattice_data(lattice, data_dir, filename="lattice.dat", verbose=0):
         Verbosity level for logging information (default is 0).
     """
     
-    file_path = data_dir / filename
+    file_path = save_dir / filename
     np.savetxt(file_path, lattice, header="Lattice configuration", fmt='%d')
     if verbose > 0:
         print(f"Lattice configuration saved at {file_path}")
