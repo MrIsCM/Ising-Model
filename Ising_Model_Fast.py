@@ -144,13 +144,14 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
         Array of energy values at each Monte Carlo step.
     - images : numpy.ndarray or None
         Array of saved lattice snapshots if `save_images` is True, otherwise None.
-    - image_indices : None
-        Placeholder for consistency in the return statement (always None).
+    - web[-1] : numpy.ndarray
+        Final lattice configuration after the simulation.
     Notes:
     ------
     - The Metropolis algorithm is used to simulate the evolution of the Ising model.
     - The flipping condition is determined by the change in energy (dE) and the temperature (T).
     - If `save_images` is True, the lattice snapshots are saved at the specified `image_spacing` steps.
+    - If the system is not in equilibrium after the simulation, it is possible to run again using the returned last lattice configuration as the new initial state. 
     """
 
 
@@ -216,12 +217,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
         net_spins[t] = web.sum()/(N**2)
         net_energy[t] = energy
 
-    # 
-    if save_images and image_spacing is not None:
-        images[-1] = web.copy()
-
-            
-    return net_spins, net_energy, images
+    return net_spins, net_energy, images, web[-1]
 
 def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='figures', verbose=0):
     """
@@ -332,6 +328,7 @@ def save_energy_data(energy, data_dir, filename="energy.dat", verbose=0):
     np.savetxt(file_path, energy, header="Energy values", fmt='%.6f')
     if verbose > 0:
         print(f"Energy data saved at {file_path}")
+
 
 def save_magnetization_data(magnetization, data_dir, filename="magnetization.dat", verbose=0):
         
