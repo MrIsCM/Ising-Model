@@ -48,7 +48,7 @@ def get_energy(lattice, N, J1, J2):
     return (energy_nn + energy_nnn).sum()/2
 
 @njit
-def compute_specific_heat(energy_array, N, T):
+def compute_specific_heat(energy_array, N, T, burn_in=0.5):
     """
     Compute the specific heat per spin of the Ising model system.
     
@@ -66,8 +66,8 @@ def compute_specific_heat(energy_array, N, T):
     - float
         Specific heat per spin.
     """
-    
-    C = np.var(energy_array) / (T * N*N)
+    burn_in_index = int(len(energy_array) * burn_in)
+    C = np.var(energy_array[burn_in_index:]) / (T*T * N*N)
 
     return C
 
@@ -221,6 +221,9 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
 
     return net_spins, net_energy, images, last_config
 
+
+    
+
 def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='figures', images_dir='images', verbose=0):
     """
     Creates a directory structure for storing simulation data and figures.
@@ -336,6 +339,29 @@ def save_data(data, save_dir, filename="data.dat", header=None, fmt='%.6f', verb
     np.savetxt(file_path, data, header=header, fmt=fmt)
     if verbose > 0:
         print(f"{filename[:-3]} saved at {file_path}")
+
+
+def fast_save_data(data, save_dir, filename="data", verbose=0):
+    """
+    Save data in binary format using numpy's .npy format.
+    ----------
+    Parameters:
+        - data : numpy.ndarray
+            The data to be saved.
+        - save_dir : str or Path
+            Directory where the file will be saved.
+        - filename : str, optional
+            Name of the output file (default is "data.npy").
+        - verbose : int, optional
+            Verbosity level for logging information (default is 0).
+    """
+    
+    file_path = save_dir / filename
+    np.save(file_path, data)
+    if verbose > 0:
+        print(f"{filename} saved at {file_path} in binary format (.npy)")
+
+
 
 def save_energy_data(energy, save_dir, filename="energy.dat", verbose=0):
     
