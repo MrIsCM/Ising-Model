@@ -127,7 +127,7 @@ class IsingModel:
         # Energia total
         energy = -self.J1 * np.sum(self.web * energy_nn) - self.J2 * np.sum(self.web * energy_nnn)
 
-        return energy / 2  # Divido entre 2 porque cada interaccion se cuenta dos veces
+        return energy / (2*self.N)  # Divido entre 2 porque cada interaccion se cuenta dos veces
     
     def precomputar_vecinos_cercanos(self):
         """
@@ -517,9 +517,6 @@ class IsingModel:
         C = E_std**2 / (self.NN * self.T**2)
         self.C = C
         return C
-
-
-
 
     def crear_gif(self, nombre='ising.gif', intervalo=100, figsize=(10,6), dpi=150, dir_path=None):
 
