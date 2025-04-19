@@ -11,7 +11,28 @@ from pathlib import Path
 #   Function definitions
 # ----------------------------
 
-def get_energy(lattice, N, J1, J2):
+def initialize_lattice(N, p=0.5, seed=None, **kwargs):
+    """
+    Initialize a 2D lattice of size N x N with random spins (+1 or -1).
+    Parameters:
+    -----------
+    - N : int
+        Size of the lattice (N x N).
+    - p : float, optional
+        Probability of a spin being +1 (default is 0.5).
+    - seed : int, optional
+        Random seed for reproducibility (default is None).
+    Returns:
+    --------
+    - numpy.ndarray
+        A 2D array representing the initialized lattice.
+    
+    """
+    np.random.seed(seed)  # Set the random seed for reproducibility
+    web = np.random.choice([1, -1], size=(N, N), p=[p, 1-p])
+    return web.astype(np.int8)  # Convert to int8 for memory efficiency
+
+def get_energy(lattice, N, J1, J2, **kwargs):
     """
     Calculate the total energy of a 2D Ising model lattice with nearest-neighbor (NN) 
     and next-nearest-neighbor (NNN) interactions.
@@ -48,7 +69,7 @@ def get_energy(lattice, N, J1, J2):
     return (energy_nn + energy_nnn).sum()/2
 
 @njit
-def compute_specific_heat(energy_array, N, T, burn_in=0.5):
+def compute_specific_heat(energy_array, N, T, burn_in=0.5, **kwargs):
     """
     Compute the specific heat per spin of the Ising model system.
     
@@ -108,7 +129,7 @@ def get_dE(lattice, x, y, N, J1, J2):
 
 
 @njit
-def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image_spacing=None, verbose=0):
+def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=False, images_spacing=np.array([0, 1]), verbose=0, **kwargs):
     """
     Perform the Metropolis algorithm for simulating the Ising model.
     Parameters:
@@ -129,8 +150,8 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
         Interaction strength for next-nearest neighbors.
     - save_images : bool, optional
         Whether to save snapshots of the lattice during the simulation (default is False).
-    - image_spacing : list of int, optional
-        List of Monte Carlo steps at which to save lattice snapshots (default is None).
+    - images_spacing : list of int, optional
+        List of Monte Carlo steps at which to save lattice snapshots (default is numpy.array [0,1]).
     - verbose : int, optional
         Verbosity level for logging information during the simulation:
         - 0: No output.
@@ -143,17 +164,18 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
     - net_energy : numpy.ndarray
         Array of energy values at each Monte Carlo step.
     - images : numpy.ndarray or None
-        Array of saved lattice snapshots if `save_images` is True, otherwise None.
+        Array of saved lattice snapshots if `save_images` is True, otherwise -1.
     - last_config : numpy.ndarray
         Final lattice configuration after the simulation.
     Notes:
     ------
     - The Metropolis algorithm is used to simulate the evolution of the Ising model.
     - The flipping condition is determined by the change in energy (dE) and the temperature (T).
-    - If `save_images` is True, the lattice snapshots are saved at the specified `image_spacing` steps.
+    - If `save_images` is True, the lattice snapshots are saved at the specified `images_spacing` steps.
     - If the system is not in equilibrium after the simulation, it is possible to run again using the returned last lattice configuration as the new initial state. 
     """
 
+    np.random.seed(seed)  # Set the random seed for reproducibility
 
     # 1. Initialize variables
     web = lattice.copy()
@@ -175,23 +197,24 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
     #------------------------
     #   Image saving logic
     #------------------------
-    if save_images and image_spacing is not None:
+    aux_img_idx = 0
+    if save_images and images_spacing is not None:
         if verbose > 0:
-            print(f"This run wil save {len(image_spacing)} images")
-        images = np.empty((len(image_spacing), N, N), dtype=np.int8)
-        aux_img_idx = 0
+            print(f"This run wil save {len(images_spacing)} images")
+        images = np.empty((len(images_spacing), N, N), dtype=np.int8)
+        
     # 'None' used for consistency in the return statement
     else:
         if verbose > 0:
             print(f"This run will not save images")
-        images = None
+        images = np.zeros((1, N, N), dtype=np.int8)  # Placeholder for images
 
 
     # ---------------------
     #       Main loop
     # ---------------------
     for t in range(MC_steps):
-        if save_images and t in image_spacing:
+        if save_images and t in images_spacing:
             if verbose > 1:
                 print(f"Saving state at step: {t}/{MC_steps}")
             images[aux_img_idx] = web.copy()
@@ -217,6 +240,8 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
         net_spins[t] = web.sum()/(N**2)
         net_energy[t] = energy
 
+        if save_images:
+            images[-1] = web.copy()
         last_config = web.copy()
 
     return net_spins, net_energy, images, last_config

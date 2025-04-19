@@ -44,7 +44,7 @@ n_images = 100
 
 # Set the MC steps idxs to save the images
 img_spacing = np.unique(np.logspace(0, np.log10(MC_steps), n_images, endpoint=True, dtype=int))
-
+n_images = len(img_spacing)
 
 # Configure and save paths in a dict
 paths = path_configuration(N, T)
