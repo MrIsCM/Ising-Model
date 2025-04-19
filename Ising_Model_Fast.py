@@ -29,7 +29,7 @@ def get_energy(lattice, N, J1, J2):
     Returns:
     --------
     - float
-        The total energy of the lattice normalized by the number of spins (N*N).
+        The total energy of the lattice.
     """
 
     kernel_nn = np.array([
@@ -67,7 +67,7 @@ def compute_specific_heat(energy_array, N, T, burn_in=0.5):
         Specific heat per spin.
     """
     burn_in_index = int(len(energy_array) * burn_in)
-    C = np.var(energy_array[burn_in_index:]) / (T*T * N*N)
+    C = np.var(energy_array[burn_in_index:]) / (T * N*N)
 
     return C
 
@@ -224,7 +224,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
 
     
 
-def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='figures', images_dir='images', verbose=0):
+def path_configuration(N, T, J1=None, J2=None, simulations_dir='Simulations', data_dir='data', figures_dir='figures', images_dir='images', verbose=0):
     """
     Creates a directory structure for storing simulation data and figures.
     Parameters:
@@ -237,6 +237,8 @@ def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='fig
         The first coupling constant (default is None).
     J2 : float, optional
         The second coupling constant (default is None).
+    simulations_dir : str, optional
+        The name of the parent directory for simulations (default is 'Simulations').
     data_dir : str, optional
         The name of the subdirectory for storing data (default is 'data').
     figures_dir : str, optional
@@ -260,6 +262,10 @@ def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='fig
     
     if verbose > 0:
         print(f"Creating directory structure for N={N}, T={T}")
+
+    # Create the main simulations directory if it doesn't exist
+    simulations_dir = Path(simulations_dir)
+    simulations_dir.mkdir(parents=True, exist_ok=True)
     
     # Parent folder
     if verbose > 1:
@@ -268,7 +274,7 @@ def path_configuration(N, T, J1=None, J2=None, data_dir='data', figures_dir='fig
         parent_name = f"Simulation_N{N}_T{T}"
     else:
         parent_name = f"Simulation_N{N}_T{T}_J1{J1}_J2{J2}"
-    parent_dir = Path(parent_name)
+    parent_dir = simulations_dir / parent_name
     parent_dir.mkdir(parents=True, exist_ok=True)
 
     # Sub folders
