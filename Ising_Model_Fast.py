@@ -144,7 +144,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, save_images=False, image
         Array of energy values at each Monte Carlo step.
     - images : numpy.ndarray or None
         Array of saved lattice snapshots if `save_images` is True, otherwise None.
-    - web[-1] : numpy.ndarray
+    - last_config : numpy.ndarray
         Final lattice configuration after the simulation.
     Notes:
     ------
@@ -336,7 +336,10 @@ def create_gif(images, save_dir, filename="simulation.gif", fps=10, scale=1, cma
 def save_data(data, save_dir, filename="data.dat", header=None, fmt='%.6f', verbose=0):
 
     file_path = save_dir / filename
-    np.savetxt(file_path, data, header=header, fmt=fmt)
+    if header is None:
+        np.savetxt(file_path, data, fmt=fmt)
+    else:
+        np.savetxt(file_path, data, header=header, fmt=fmt)
     if verbose > 0:
         print(f"{filename[:-3]} saved at {file_path}")
 
