@@ -8,8 +8,8 @@ import time
 # ===========================================
 
 # Global parameters
-SEED = 42
-np.random.seed(SEED)
+seed = 1234
+np.random.seed(seed)
 
 test_verbose = True
 
@@ -66,8 +66,8 @@ simulation_params = {
     'J1' : J1,
     'J2' : J2,
     'save_images' : True,
-    'image_spacing' : img_spacing,
-    'verbose' : 0
+    'images_spacing' : img_spacing,
+    'seed' : seed,
     }
 
 
@@ -80,11 +80,11 @@ t_save_data_i = time.time()
 # TIME TESTING
 
 # Save magnetization and energy data
-for data, name in zip([spins, energies], ['spins.dat', 'energies.dat']):
-    save_data(data, paths['data'], name)
+for data, name in zip([spins, energies], ['spins', 'energies']):
+    fast_save_data(data, paths['data'], name)
 
 # Save final configuration
-save_data(last_config, paths['data'], 'final_configuration.dat')
+fast_save_data(last_config, paths['data'], f'last_config_N{N}_T{T}_MC{MC_steps}')
 
 # TIME TESTING
 t_save_data_f = time.time()

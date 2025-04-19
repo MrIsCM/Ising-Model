@@ -129,7 +129,7 @@ def get_dE(lattice, x, y, N, J1, J2):
 
 
 @njit
-def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=False, images_spacing=np.array([0, 1]), verbose=0, **kwargs):
+def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=False, images_spacing=np.array([0, 1]), **kwargs):
     """
     Perform the Metropolis algorithm for simulating the Ising model.
     Parameters:
@@ -152,11 +152,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
         Whether to save snapshots of the lattice during the simulation (default is False).
     - images_spacing : list of int, optional
         List of Monte Carlo steps at which to save lattice snapshots (default is numpy.array [0,1]).
-    - verbose : int, optional
-        Verbosity level for logging information during the simulation:
-        - 0: No output.
-        - 1: Basic information.
-        - 2: Detailed information (default is 0).
+.
     Returns:
     --------
     - net_spins : numpy.ndarray
@@ -182,31 +178,15 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
     net_spins = np.zeros(MC_steps)
     net_energy = np.zeros(MC_steps)
 
-    # Information output. Ammount if information printed is controlled by verbose.
-    if verbose > 0:
-        print(f"Starting simulation with configuration:")
-        print(f"\t - NxN: {N}x{N}")
-        print(f"\t - Temperature: {T}")
-        print(f"\t - J1: {J1}")
-        print(f"\t - J2: {J2}")
-        print(f"\t - MC steps: {MC_steps}")
-    if verbose > 1:
-        print(f"\t - Initial energy: {energy}")
-        print(f"\t - Initial magnetization: {web.sum()/(N**2)}")
-
     #------------------------
     #   Image saving logic
     #------------------------
     aux_img_idx = 0
     if save_images and images_spacing is not None:
-        if verbose > 0:
-            print(f"This run wil save {len(images_spacing)} images")
         images = np.empty((len(images_spacing), N, N), dtype=np.int8)
         
     # 'None' used for consistency in the return statement
     else:
-        if verbose > 0:
-            print(f"This run will not save images")
         images = np.zeros((1, N, N), dtype=np.int8)  # Placeholder for images
 
 
@@ -215,8 +195,6 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
     # ---------------------
     for t in range(MC_steps):
         if save_images and t in images_spacing:
-            if verbose > 1:
-                print(f"Saving state at step: {t}/{MC_steps}")
             images[aux_img_idx] = web.copy()
             aux_img_idx += 1
 
@@ -248,7 +226,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
 
 
 @njit
-def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=False, images_spacing=np.array([0, 1]), verbose=0, **kwargs):
+def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=False, images_spacing_first_iter=np.array([0, 1]), images_spacing_MC=np.array([0, 1]), **kwargs):
     """
     Perform the Metropolis algorithm for simulating the Ising model.
     Parameters:
@@ -294,65 +272,80 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_imag
     - If the system is not in equilibrium after the simulation, it is possible to run again using the returned last lattice configuration as the new initial state. 
     """
 
-    np.random.seed(seed)  # Set the random seed for reproducibility
+    # Select a seed for reproducibility
+    np.random.seed(seed)
 
     # 1. Initialize variables
     web = lattice.copy()
-    net_spins = np.empty(MC_steps, dtype=np.float32)
-    net_energy = np.empty(MC_steps*N*N, dtype=np.float32)
-    N_squared = N*N
-
-
-    # Information output. Ammount if information printed is controlled by verbose.
-    if verbose > 0:
-        print(f"Starting simulation with configuration:")
-        print(f"\t - NxN: {N}x{N}")
-        print(f"\t - Temperature: {T}")
-        print(f"\t - J1: {J1}")
-        print(f"\t - J2: {J2}")
-        print(f"\t - MC steps: {MC_steps}")
-    if verbose > 1:
-        print(f"\t - Initial energy: {energy}")
-        print(f"\t - Initial magnetization: {web.sum()/(N**2)}")
-
+    net_spins = np.empty(MC_steps, dtype=np.float32)            # Updated every MC step
+    net_energy = np.empty(MC_steps*N*N, dtype=np.float32)       # Updated every *iteration*
+    N_squared = N*N         
+    
     #------------------------
     #   Image saving logic
     #------------------------
-    aux_img_idx = 0
-    if save_images and images_spacing is not None:
-        if verbose > 0:
-            print(f"This run wil save {len(images_spacing)} images")
-        images = np.empty((len(images_spacing), N, N), dtype=np.int8)
+    aux_img_first_iter_idx = 0
+    aux_img_MC_idx = 0
+    if save_images:
+        images_MC = np.empty((len(images_spacing_MC), N, N), dtype=np.int8)
+        images_first_iter = np.empty((len(images_spacing_first_iter)-1, N, N), dtype=np.int8)
         
     # 'None' used for consistency in the return statement
     else:
-        if verbose > 0:
-            print(f"This run will not save images")
-        images = np.zeros((1, N, N), dtype=np.int8)  # Placeholder for images
+        images_MC = np.zeros((1, N, N), dtype=np.int8)          # For consistency in return statement
+        images_first_iter = np.zeros((1, N, N), dtype=np.int8)  # For consistency in return statement
 
+    # Random idxs for the first MC step
+    x_idx = np.random.randint(0, N, size=N_squared)
+    y_idx = np.random.randint(0, N, size=N_squared)
 
-    # ---------------------
-    #       Main loop
-    # ---------------------
-    for t in range(MC_steps):
+    # Save initial net spin
+    net_spins[0] = web.sum()/(N**2)
+
+    # ===========================
+    #       FIRST MC STEP
+    # ===========================
+    #   During the first Monte Carlo step, the lattice changes a lot, 
+    #   so we save images during iterations inside the MC step.
+
+    for k in range(N_squared):
+        
+        # Save state at specified iteration intervals
+        if save_images and k in images_spacing_first_iter:
+            images_first_iter[aux_img_first_iter_idx] = web.copy()
+            aux_img_first_iter_idx += 1
+        
+        # Choose a random spin to evaluate
+        x, y = x_idx[k], y_idx[k]
+        dE = get_dE(web, x, y, N, J1, J2)
+
+        # Apply flipping condition
+        if ((dE > 0) * (np.random.random() < np.exp(-dE/T))):
+            web[x,y] *= -1
+            energy += dE
+        elif dE<=0:
+            web[x,y] *= -1
+            energy += dE
+
+        # Update energy at every iteration
+        net_energy[k] = energy
+
+    # =============================================
+    #       Main loop: rest of the MC steps
+    # =============================================
+    for t in range(1, MC_steps):
         # Save images at specified MC intervals
-        if save_images and t in images_spacing:
-            if verbose > 1:
-                print(f"Saving state at step: {t}/{MC_steps}")
-            images[aux_img_idx] = web.copy()
-            aux_img_idx += 1
+        if save_images and t in images_spacing_MC:
+            images_MC[aux_img_MC_idx] = web.copy()
+            aux_img_MC_idx += 1
 
         # Save magnetization at every MC step
         net_spins[t] = web.sum()/(N**2)
         
-        # 2. Choose a random spin to evaluate
-        x_idx = np.random.randint(0, N, size=N_squared)
-        y_idx = np.random.randint(0, N, size=N_squared)
-
         for k in range(N_squared):
-
-            x = x_idx[k]
-            y = y_idx[k]
+            # 2. Choose a random spin to evaluate
+            x = np.random.randint(0, N)
+            y = np.random.randint(0, N)
 
             # 3. Compute the change in energy
             dE = get_dE(web, x, y, N, J1, J2)
@@ -369,13 +362,13 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_imag
             net_energy[t*N_squared + k] = energy
 
         if save_images:
-            images[-1] = web.copy()
+            images_MC[-1] = web.copy()
         last_config = web.copy()
 
         # # Save last magnetization value
         # net_spins[-1] = web.sum()/(N**2)
 
-    return net_spins, net_energy, images, last_config
+    return net_spins, net_energy, images_MC, images_first_iter, last_config
     
 
 def path_configuration(N, T, J1=None, J2=None, simulations_dir='Simulations', data_dir='data', figures_dir='figures', images_dir='images', verbose=0):
