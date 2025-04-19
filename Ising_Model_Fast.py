@@ -228,6 +228,8 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
 @njit
 def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=False, images_spacing_first_iter=np.array([0, 1]), images_spacing_MC=np.array([0, 1]), **kwargs):
     """
+    *WORK IN PROGRESS*
+    ------------------
     Perform the Metropolis algorithm for simulating the Ising model.
     Parameters:
     -----------
