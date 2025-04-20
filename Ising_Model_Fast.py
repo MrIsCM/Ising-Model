@@ -227,7 +227,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
 
 
 @njit(parallel=True)
-def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=False, images_spacing=np.array([0, 1])):
+def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     """
     *WORK IN PROGRESS*
     ------------------
@@ -248,23 +248,12 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_imag
         Interaction strength for nearest neighbors.
     - J2 : float
         Interaction strength for next-nearest neighbors.
-    - save_images : bool, optional
-        Whether to save snapshots of the lattice during the simulation (default is False).
-    - images_spacing : list of int, optional
-        List of Monte Carlo steps at which to save lattice snapshots (default is numpy.array [0,1]).
-    - verbose : int, optional
-        Verbosity level for logging information during the simulation:
-        - 0: No output.
-        - 1: Basic information.
-        - 2: Detailed information (default is 0).
     Returns:
     --------
     - net_spins : numpy.ndarray
         Array of net magnetization values at each Monte Carlo step.
     - net_energy : numpy.ndarray
         Array of energy values at each Monte Carlo step.
-    - images : numpy.ndarray or None
-        Array of saved lattice snapshots if `save_images` is True, otherwise same shape empty np.narray.
     - last_config : numpy.ndarray
         Final lattice configuration after the simulation.
     Notes:
@@ -284,36 +273,21 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_imag
     net_energy = np.empty(MC_steps*N*N, dtype=np.float32)       # Updated every *iteration*
     N_squared = N*N         
     
-    #------------------------
-    #   Image saving logic
-    #------------------------
-    aux_img_idx = 0
-    if save_images:
-        images = np.empty((len(images_spacing), N, N), dtype=np.int8)
-        
-    # 'None' used for consistency in the return statement
-    else:
-        images = np.zeros((1, N, N), dtype=np.int8)          # For consistency in return statement
 
     # =============================================
     #               Main loop
     # =============================================
     for t in range(0, MC_steps):
-        # Save images at specified MC intervals
-        if save_images and t in images_spacing:
-            images[aux_img_idx] = web.copy()
-            aux_img_idx += 1
-
         # Save magnetization at every MC step
         net_spins[t] = web.sum()/(N**2)
         
-        x_idx = np.random.randint(0, N, size=N_squared)
-        y_idx = np.random.randint(0, N, size=N_squared)
+        # x_idx = np.random.randint(0, N, size=N_squared)
+        # y_idx = np.random.randint(0, N, size=N_squared)
 
         for k in range(N_squared):
             # 2. Choose a random spin to evaluate
-            x = x_idx[k]
-            y = y_idx[k]
+            x = np.random.randint(0, N)
+            y = np.random.randint(0, N)
 
             # 3. Compute the change in energy
             dE = get_dE(web, x, y, N, J1, J2)
@@ -329,12 +303,7 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_imag
             # 5. Save average energy
             net_energy[t*N_squared + k] = energy
 
-        if save_images:
-            images[-1] = web.copy()
-        
-        last_config = web.copy()
-
-    return net_spins, net_energy, images, last_config
+    return net_spins, net_energy, web.copy()
     
 
 def path_configuration(N, T, J1=None, J2=None, simulations_dir='Simulations', data_dir='data', figures_dir='figures', images_dir='images', verbose=0):
