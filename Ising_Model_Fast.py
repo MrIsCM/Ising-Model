@@ -69,6 +69,46 @@ def get_energy(lattice, N, J1, J2, **kwargs):
     return (energy_nn + energy_nnn).sum()/2
 
 @njit
+def get_energy_fast(lattice, N, J1, J2):
+    """
+    Calculate the total energy of a 2D Ising model lattice with nearest-neighbor (NN) 
+    and next-nearest-neighbor (NNN) interactions.
+    Parameters:
+    -----------
+    - lattice : numpy.ndarray
+        A 2D array representing the spin configuration of the lattice. Each element 
+        is typically +1 or -1, representing spin states.
+    - N : int
+        Side length of the square lattice .
+    - J1 : float
+        The interaction strength for nearest-neighbor (NN) interactions.
+    - J2 : float
+        The interaction strength for next-nearest-neighbor (NNN) interactions.
+    Returns:
+    --------
+    - float
+        The total energy of the lattice.
+    """
+    
+    energy = 0.0
+
+    for i in range(N):
+        for j in range(N):
+            # Nearest neighbors
+            energy += -J1 * lattice[i, j] * (
+                lattice[(i+1)%N, j] + lattice[i, (j+1)%N] +
+                lattice[(i-1)%N, j] + lattice[i, (j-1)%N]
+            )
+            
+            # Next nearest neighbors
+            energy += -J2 * lattice[i, j] * (
+                lattice[(i+1)%N, (j+1)%N] + lattice[(i-1)%N, (j-1)%N] +
+                lattice[(i+1)%N, (j-1)%N] + lattice[(i-1)%N, (j+1)%N]
+            )
+
+    return energy / 2.0
+
+@njit
 def compute_specific_heat(energy_array, N, T, burn_in=0.5, **kwargs):
     """
     Compute the specific heat per spin of the Ising model system.
@@ -270,16 +310,17 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     # 1. Initialize variables
     web = lattice.copy()
     net_spins = np.empty(MC_steps, dtype=np.float32)            # Updated every MC step
-    net_energy = np.empty(MC_steps*N*N, dtype=np.float32)       # Updated every *iteration*
+    net_energy = np.empty(MC_steps, dtype=np.float32)           # Updated every MC step
     N_squared = N*N         
     
-
+    energy = get_energy_fast(web, N, J1, J2)  # Initial energy
     # =============================================
     #               Main loop
     # =============================================
     for t in range(0, MC_steps):
         # Save magnetization at every MC step
         net_spins[t] = web.sum()/(N**2)
+        net_energy[t] = energy
         
         # x_idx = np.random.randint(0, N, size=N_squared)
         # y_idx = np.random.randint(0, N, size=N_squared)
@@ -299,9 +340,6 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
             elif dE<=0:
                 web[x,y] *= -1
                 energy += dE
-                
-            # 5. Save average energy
-            net_energy[t*N_squared + k] = energy
 
     return net_spins, net_energy, web.copy()
     
