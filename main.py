@@ -15,11 +15,11 @@ test_verbose = True
 
 
 # Paremeter configuration
-N = 50
+N = 65
 J1 = 0.5
 J2 = 1.0
-T = 0.2
-MC_steps = 1_000_000
+T = 0.5
+MC_steps = 50_000_000
 
 # TIME TESTING
 t_inits_i = time.time()
@@ -40,7 +40,7 @@ initial_energy = get_energy(lattice, N, J1, J2)
 # Setup simulation parameters
 
 # nº of states to save (gif/images)
-n_images = 100
+n_images = 200
 
 # Set the MC steps idxs to save the images
 img_spacing = np.unique(np.logspace(0, np.log10(MC_steps), n_images, endpoint=True, dtype=int))
@@ -80,11 +80,11 @@ t_save_data_i = time.time()
 # TIME TESTING
 
 # Save magnetization and energy data
-for data, name in zip([spins, energies], ['spins', 'energies']):
-    fast_save_data(data, paths['data'], name)
+# for data, name in zip([spins, energies], ['spins', 'energies']):
+    # fast_save_data(data, paths['data'], name)
 
 # Save final configuration
-fast_save_data(last_config, paths['data'], f'last_config_N{N}_T{T}_MC{MC_steps}')
+# fast_save_data(last_config, paths['data'], f'last_config_N{N}_T{T}_MC{MC_steps}')
 
 # TIME TESTING
 t_save_data_f = time.time()
@@ -92,7 +92,7 @@ t_save_gif_i = time.time()
 # TIME TESTING
 
 # Save gif
-create_gif(images, save_dir=paths['figures'], filename='demo.gif', scale=5, fps=15, cmap='plasma')
+create_gif(images, save_dir=paths['figures'], filename='buggy_seed3.gif', scale=5, fps=15, cmap='plasma')
 
 # TIME TESTING
 t_save_gif_f = time.time()
