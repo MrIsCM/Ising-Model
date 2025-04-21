@@ -344,6 +344,85 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     return net_spins, net_energy, web.copy()
     
 
+@njit(parallel=True)
+def metropolis_large_opt(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
+    """
+    *WORK IN PROGRESS*
+    ------------------
+    Perform the Metropolis algorithm for simulating the Ising model.
+    Parameters:
+    -----------
+    - lattice : numpy.ndarray
+        Initial NxN lattice configuration of spins (+1 or -1).
+    - MC_steps : int
+        Number of Monte Carlo steps to perform.
+    - T : float
+        Temperature of the system.
+    - energy : float
+        Initial energy of the system.
+    - N : int
+        Size of the lattice (NxN).
+    - J1 : float
+        Interaction strength for nearest neighbors.
+    - J2 : float
+        Interaction strength for next-nearest neighbors.
+    Returns:
+    --------
+    - net_spins : numpy.ndarray
+        Array of net magnetization values at each Monte Carlo step.
+    - net_energy : numpy.ndarray
+        Array of energy values at each Monte Carlo step.
+    - last_config : numpy.ndarray
+        Final lattice configuration after the simulation.
+    Notes:
+    ------
+    - The Metropolis algorithm is used to simulate the evolution of the Ising model.
+    - The flipping condition is determined by the change in energy (dE) and the temperature (T).
+    - If `save_images` is True, the lattice snapshots are saved at the specified `images_spacing` steps.
+    - If the system is not in equilibrium after the simulation, it is possible to run again using the returned last lattice configuration as the new initial state. 
+    """
+
+    # Select a seed for reproducibility
+    np.random.seed(seed)
+
+    # 1. Initialize variables
+    web = lattice.copy()
+    net_spins = np.empty(MC_steps, dtype=np.float32)            # Updated every MC step
+    net_energy = np.empty(MC_steps, dtype=np.float32)           # Updated every MC step
+    N_squared = N*N         
+    
+    energy = get_energy_fast(web, N, J1, J2)  # Initial energy
+    # =============================================
+    #               Main loop
+    # =============================================
+    for t in range(0, MC_steps):
+        # Save magnetization at every MC step
+        net_spins[t] = web.sum()/(N_squared)
+        net_energy[t] = energy
+        
+        x_idx = np.random.randint(0, N, size=N_squared)
+        y_idx = np.random.randint(0, N, size=N_squared)
+        acceptance = np.random.random(N_squared)
+
+        for k in range(N_squared):
+            # 2. Choose a random spin to evaluate
+            x = x_idx[k]
+            y = y_idx[k]
+
+            # 3. Compute the change in energy
+            dE = get_dE(web, x, y, N, J1, J2)
+
+            # 4. Apply flipping condition
+            if ((dE > 0) * (acceptance[k] < np.exp(-dE/T))):
+                web[x,y] *= -1
+                energy += dE
+            elif dE<=0:
+                web[x,y] *= -1
+                energy += dE
+
+    return net_spins, net_energy, web.copy()
+ 
+
 def path_configuration(N, T, J1=None, J2=None, simulations_dir='Simulations', data_dir='data', figures_dir='figures', images_dir='images', verbose=0):
     """
     Creates a directory structure for storing simulation data and figures.
