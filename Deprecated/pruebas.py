@@ -1,6 +1,6 @@
 # Imports
 import numpy as np
-from IsingClass import IsingModel
+from Deprecated.IsingClass import IsingModel
 
 # Esta es la seed. Si quieres reproducibilidad, ponla siempre igual.
 # Si no te importa, puedes poner 'None'
