@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import numba
-from numba import njit,prange
+from numba import njit
 from scipy.ndimage import convolve
 import imageio
 from pathlib import Path
@@ -128,7 +128,7 @@ def compute_specific_heat(energy_array, N, T, burn_in=0.5, **kwargs):
         Specific heat per spin.
     """
     burn_in_index = int(len(energy_array) * burn_in)
-    C = np.var(energy_array[burn_in_index:]) / (T**2 * N*N)
+    C = np.var(energy_array[burn_in_index:]) / (T * N*N)
 
     return C
 
@@ -255,7 +255,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
             energy += dE
             
         # 5. Save net spin (magnetization) and energy
-        net_spins[t] = np.abs(web.sum()/(N**2))
+        net_spins[t] = web.sum()/(N**2)
         net_energy[t] = energy
 
         if save_images:
@@ -266,7 +266,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
     return net_spins, net_energy, images, last_config
 
 
-@njit(parallel=False)
+@njit(parallel=True)
 def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     """
     Perform the Metropolis algorithm for simulating the Ising model.
@@ -317,7 +317,7 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     # =============================================
     for t in range(0, MC_steps):
         # Save magnetization at every MC step
-        net_spins[t] = np.abs(web.sum()/(N**2))
+        net_spins[t] = web.sum()/(N**2)
         net_energy[t] = energy
         
         # x_idx = np.random.randint(0, N, size=N_squared)
@@ -342,7 +342,7 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     return net_spins, net_energy, web.copy()
     
 
-@njit(parallel=False)
+@njit(parallel=True)
 def metropolis_large_opt(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     """
     *WORK IN PROGRESS*
@@ -604,351 +604,3 @@ def save_lattice_data(lattice, save_dir, filename="lattice.dat", verbose=0):
     np.savetxt(file_path, lattice, header="Lattice configuration", fmt='%d')
     if verbose > 0:
         print(f"Lattice configuration saved at {file_path}")
-
-def get_M_E_C_of_T(lattice, energy, Ts, simulation_params, use_last=1000, burn_in=0.3):
-    """
-    Calculate the average magnetization, energy, and heat capacity for a range of temperatures.
-    """
-    N = simulation_params['N']
-    avg_mags = np.empty(len(Ts), dtype=np.float32)
-    avg_energies = np.empty(len(Ts), dtype=np.float32)
-    heat_capacities = np.empty(len(Ts), dtype=np.float32)
-
-    for i, T in enumerate(Ts):
-        simulation_params['T'] = T
-        print("="*20)
-        print(f"Starting Simulation for T = {T:.2f}")
-        print("="*20)
-
-        mags, energies, _, _ = metropolis(
-            lattice=lattice, energy=energy, **simulation_params
-        )
-
-        avg_mags[i] = np.mean(mags[-use_last:])
-        avg_energies[i] = np.mean(energies[-use_last:])
-        heat_capacities[i] = compute_specific_heat(
-            energies[-use_last:], N, T, burn_in=burn_in
-        )
-
-    return avg_mags, avg_energies, heat_capacities
-
-@njit
-def std_manual(arr, mean_val):
-    n = len(arr)
-    return np.sqrt(np.sum((arr - mean_val) ** 2) / (n - 1))
-
-@njit(parallel=True)
-def get_M_E_C_of_T_numba(lattice, energy, Ts, N, J1, J2, MC_steps, seed, use_last=1000):
-    n_temps = len(Ts)
-    avg_mags = np.empty(n_temps, dtype=np.float32)
-    std_mags = np.empty(n_temps, dtype=np.float32)
-    avg_energies = np.empty(n_temps, dtype=np.float32)
-    std_energies = np.empty(n_temps, dtype=np.float32)
-    heat_capacities = np.empty(n_temps, dtype=np.float32)
-    std_Cv = np.empty(n_temps, dtype=np.float32)
-
-    for i in prange(n_temps):
-        T = Ts[i]
-        local_lattice = lattice.copy()
-        local_seed = seed + i * 1000
-        mags, energies, _ = metropolis_large(
-            local_lattice, MC_steps, T, energy, N, J1, J2, local_seed
-        )
-
-        e_sample = energies[-use_last:]
-        m_sample = mags[-use_last:]
-
-        mean_E = np.mean(e_sample)
-        mean_M = np.mean(m_sample)
-
-        std_E = std_manual(e_sample, mean_E)
-        std_M = std_manual(m_sample, mean_M)
-
-        # Calor específico
-        # Probando con T en vez de T**2
-        # C_v = np.sum((e_sample - mean_E)**2) / ((use_last - 1) * T**2 * N * N)
-        C_v = np.sum((e_sample - mean_E)**2) / ((use_last - 1) * T * N * N)
-
-        # Error más realista del calor específico
-        # Cv_terms = (e_sample - mean_E)**2 / (T**2 * N * N)
-        Cv_terms = (e_sample - mean_E)**2 / (T * N * N)
-        mean_Cv = np.mean(Cv_terms)
-        std_C = std_manual(Cv_terms, mean_Cv) / np.sqrt(use_last)
-
-        # Guardar resultados
-        avg_energies[i] = mean_E//np.sqrt(use_last)
-        std_energies[i] = std_E//np.sqrt(use_last)
-        avg_mags[i] = mean_M
-        std_mags[i] = std_M
-        heat_capacities[i] = C_v
-        std_Cv[i] = std_C
-
-    return avg_mags, std_mags, avg_energies, std_energies, heat_capacities, std_Cv
-
-
-def save_images_as_png(images, save_dir, prefix="img", cmap="plasma", scale=1, verbose=True):
-    """
-    Save a list of 2D numpy arrays as PNG images.
-    """
-    for i, img in enumerate(images):
-        norm_img = ((img + 1) * 127.5).astype(np.uint8)
-        
-        # Crear la imagen en RGB con el colormap
-        if cmap != "gray":
-            colored_img = plt.get_cmap(cmap)(norm_img / 255.0)
-            colored_img = (colored_img[:, :, :3] * 255).astype(np.uint8)
-        else:
-            colored_img = np.stack([norm_img]*3, axis=-1)
-
-        # Escalar si se desea
-        if scale > 1:
-            colored_img = colored_img.repeat(scale, axis=0).repeat(scale, axis=1)
-
-        # Guardar como PNG
-        filename = save_dir / f"{prefix}_{i:03d}.png"
-        imageio.imwrite(filename, colored_img)
-
-    if verbose:
-        print(f"Saved PNG Images")
-
-def plot_quantity_vs_T(Ts, values, errors=None, ylabel="", title="", save_path=None, color='b', marker='o', connect_points=True):
-    """
-    Plot magnitudes térmicas vs temperatura con estilo de artículo científico.
-    - Añade barras de error si errors ≠ None.
-    - Permite puntos más discretos para que no oculten errores pequeños.
-    """
-    plt.figure(figsize=(6, 4))
-
-    if errors is not None:
-        plt.errorbar(
-            Ts, values, yerr=errors,
-            fmt=marker,
-            color=color,
-            markersize=2.5,        # más pequeño
-            elinewidth=1.2,        # más grueso
-            capsize=3,             # barras más visibles
-            linestyle='-' if connect_points else 'none',
-            alpha=0.9              # opcional: punto semitransparente
-        )
-    else:
-        plt.plot(
-            Ts, values,
-            marker=marker,
-            markersize=2.5,
-            linestyle='-' if connect_points else 'none',
-            color=color,
-            alpha=0.9
-        )
-
-    plt.xlabel('Temperature (T)')
-    plt.ylabel(ylabel)
-    plt.title(title)
-    plt.grid(True, linestyle='--', alpha=0.4)
-    plt.tight_layout()
-
-    if save_path is not None:
-        plt.savefig(save_path, dpi=300)
-    plt.close()
-
-
-
-def find_Tc(Ts: np.ndarray, heat_capacities: np.ndarray, std_Cv: np.ndarray) -> tuple[float, float]:
-    """
-    Estima Tc como el vértice de una parábola ajustada a C_v(T),
-    ponderando por el error en C_v. Calcula también el error en Tc
-    por propagación del ajuste.
-
-    Parámetros:
-    - Ts : array de temperaturas
-    - heat_capacities : array de C_v
-    - std_Cv : array de errores en C_v (desviaciones estándar)
-
-    Retorna:
-    - Tc : estimación del punto crítico
-    - sigma_Tc : error estimado de Tc
-    """
-    window_size = 7  # número impar de puntos alrededor del máximo
-    idx_peak = np.argmax(heat_capacities)
-    half_w = window_size // 2
-
-    i_start = max(0, idx_peak - half_w)
-    i_end = min(len(Ts), idx_peak + half_w + 1)
-
-    if (i_end - i_start) < 3:
-        return Ts[idx_peak], np.nan
-
-    x = Ts[i_start:i_end]
-    y = heat_capacities[i_start:i_end]
-    sigma_y = std_Cv[i_start:i_end]
-
-    weights = 1.0 / (sigma_y**2 + 1e-12)  # evitar división por cero
-
-    coeffs, cov = np.polyfit(x, y, 2, w=weights, cov=True)
-    a, b, _ = coeffs
-
-    Tc = -b / (2 * a)
-
-    # Propagación del error
-    var_a = cov[0, 0]
-    var_b = cov[1, 1]
-    cov_ab = cov[0, 1]
-
-    dTc_da = b / (2 * a**2)
-    dTc_db = -1 / (2 * a)
-
-    sigma_Tc = np.sqrt(
-        (dTc_da ** 2) * var_a +
-        (dTc_db ** 2) * var_b +
-        2 * dTc_da * dTc_db * cov_ab
-    )
-
-    return Tc, sigma_Tc
-
-
-
-
-def extrapolate_Tc(N_values: np.ndarray, Tc_values: np.ndarray) -> tuple[float, float, np.ndarray]:
-    """
-    Igual que extrapolate_exponent pero para Tc
-    """
-    invN = 1.0 / N_values
-    coef, cov = np.polyfit(invN, Tc_values, 1, cov=True)
-    Tc_inf = coef[1]
-    err = np.sqrt(cov[1, 1])
-    return Tc_inf, err, coef
-
-
-
-
-def get_clustered_temperatures(n_temperatures, center, low, high, fraction_center=0.7, width=0.2):
-    """
-    Genera un conjunto de temperaturas deterministas, distribuidas densamente
-    alrededor de un valor central. Se garantiza que una fracción configurable de los
-    puntos quede dentro de un intervalo simétrico alrededor del centro.
-
-    Parámetros:
-    -----------
-    - n_temperatures : int
-        Número total de temperaturas.
-    - center : float
-        Temperatura alrededor de la cual se desea mayor densidad.
-    - low : float
-        Límite inferior del rango total.
-    - high : float
-        Límite superior del rango total.
-    - fraction_center : float
-        Fracción de los puntos que deben estar en [center - width, center + width].
-    - width : float
-        Mitad del intervalo denso alrededor del centro.
-
-    Retorna:
-    --------
-    - numpy.ndarray
-        Array de temperaturas ordenadas y más densas alrededor de 'center'.
-    """
-    import numpy as np
-
-    # 1. Calcular cuántos puntos van al centro
-    n_center = int(n_temperatures * fraction_center)
-    n_side = (n_temperatures - n_center) // 2
-    remainder = n_temperatures - (2 * n_side + n_center)  # por si es impar
-
-    # 2. Partes: izquierda (sparse), centro (dense), derecha (sparse)
-    Ts_left = np.linspace(low, center - width, n_side, endpoint=False)
-    Ts_center = np.linspace(center - width, center + width, n_center, endpoint=False)
-    Ts_right = np.linspace(center + width, high, n_side + remainder, endpoint=True)
-
-    # 3. Unir y retornar
-    Ts = np.concatenate([Ts_left, Ts_center, Ts_right])
-    return np.sort(Ts)
-
-
-
-def estimate_critical_exponents(Ts, mags, std_mags, heat_capacities, std_Cv, Tc, window=0.15, min_points=5):
-    """
-    Estima β y α con errores estándar usando ajuste log-log ponderado por las incertidumbres.
-
-    Parámetros:
-    - Ts : array de temperaturas
-    - mags : array de magnetizaciones medias
-    - std_mags : array de errores estándar de las magnetizaciones
-    - heat_capacities : array de calor específico medio
-    - std_Cv : array de errores estándar del calor específico
-    - Tc : temperatura crítica estimada
-    - window : ventana alrededor de Tc para el ajuste
-    - min_points : número mínimo de puntos para el ajuste
-
-    Retorna:
-    - beta_fit : exponente β
-    - beta_err : error en β
-    - alpha_fit : exponente α
-    - alpha_err : error en α
-    - mask_critical : máscara booleana de puntos usados en el ajuste
-    """
-    import numpy as np
-
-    # Seleccionar zona crítica Ts < Tc y |Ts - Tc| < window
-    delta_T = np.abs(Ts - Tc)
-    mask_critical = (delta_T < window) & (Ts < Tc)
-
-    if np.count_nonzero(mask_critical) < min_points:
-        return np.nan, np.nan, np.nan, np.nan, mask_critical
-
-    # Datos filtrados
-    T_vals = Ts[mask_critical]
-    M_vals = mags[mask_critical]
-    C_vals = heat_capacities[mask_critical]
-
-    # Logaritmos de las variables
-    log_T = np.log(Tc - T_vals)
-    log_M = np.log(M_vals + 1e-10)
-    log_C = np.log(C_vals + 1e-10)
-
-    # Errores propagados en logaritmos: Δlog(x) ≈ Δx / x
-    log_M_errors = std_mags[mask_critical] / (M_vals + 1e-10)
-    log_C_errors = std_Cv[mask_critical] / (C_vals + 1e-10)
-
-    # Pesos para el ajuste ponderado: w = 1 / σ^2
-    weights_M = 1.0 / (log_M_errors**2 + 1e-12)
-    weights_C = 1.0 / (log_C_errors**2 + 1e-12)
-
-    # Ajuste lineal ponderado en escala log-log
-    slope_M, intercept_M = np.polyfit(log_T, log_M, 1, w=weights_M)
-    cov_beta = None
-    try:
-        _, cov = np.polyfit(log_T, log_M, 1, w=weights_M, cov=True)
-        cov_beta = cov
-    except:
-        pass
-    slope_C, intercept_C = np.polyfit(log_T, log_C, 1, w=weights_C)
-    cov_alpha = None
-    try:
-        _, cov = np.polyfit(log_T, log_C, 1, w=weights_C, cov=True)
-        cov_alpha = cov
-    except:
-        pass
-
-    # Exponentes y sus errores
-    beta_fit = -slope_M
-    beta_err = np.sqrt(cov_beta[0, 0]) if cov_beta is not None else np.nan
-    alpha_fit = -slope_C
-    alpha_err = np.sqrt(cov_alpha[0, 0]) if cov_alpha is not None else np.nan
-
-    return beta_fit, beta_err, alpha_fit, alpha_err, mask_critical
-
-def extrapolate_exponent(N_values: np.ndarray, exponent_values: np.ndarray, label='β') -> tuple[float, float, np.ndarray]:
-    """
-    Extrapola el exponente al límite N→∞ con ajuste lineal y devuelve su error.
-    
-    Devuelve:
-    - valor extrapolado
-    - error (1σ)
-    - coeficientes del ajuste lineal
-    """
-    invN = 1.0 / N_values
-    coef, cov = np.polyfit(invN, exponent_values, 1, cov=True)
-    exponent_inf = coef[1]
-    err = np.sqrt(cov[1, 1])
-
-    print(f"Estimación {label}(∞) = {exponent_inf:.3f} ± {err:.3f} (pendiente={coef[0]:.3f})")
-    return exponent_inf, err, coef
