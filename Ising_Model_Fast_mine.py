@@ -317,7 +317,7 @@ def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     # =============================================
     for t in range(0, MC_steps):
         # Save magnetization at every MC step
-        net_spins[t] = web.sum()/(N**2)
+        net_spins[t] = np.abs(web.sum()/(N**2))
         net_energy[t] = energy
         
         # x_idx = np.random.randint(0, N, size=N_squared)
@@ -646,10 +646,6 @@ def get_M_E_C_of_T_numba(lattice, energy, Ts, N, J1, J2, MC_steps, seed, use_las
     std_energies = np.empty(n_temps, dtype=np.float32)
     heat_capacities = np.empty(n_temps, dtype=np.float32)
     std_Cv = np.empty(n_temps, dtype=np.float32)
-    susceptibilities = np.empty(n_temps, dtype=np.float32)
-    std_chi = np.empty(n_temps, dtype=np.float32)
-    cfe = 2
-    cfm = np.sqrt(12)
 
     for i in prange(n_temps):
         T = Ts[i]
@@ -665,37 +661,29 @@ def get_M_E_C_of_T_numba(lattice, energy, Ts, N, J1, J2, MC_steps, seed, use_las
         mean_E = np.mean(e_sample)
         mean_M = np.mean(m_sample)
 
-        std_E = std_manual(e_sample, mean_E)/ np.sqrt(use_last)
-        std_M = std_manual(m_sample, mean_M)/ np.sqrt(use_last)
+        std_E = std_manual(e_sample, mean_E)
+        std_M = std_manual(m_sample, mean_M)
 
         # Calor específico
-        C_v = np.sum((e_sample - mean_E)**2) / ((use_last - 1) * T**2 * N * N)
+        # Probando con T en vez de T**2
+        # C_v = np.sum((e_sample - mean_E)**2) / ((use_last - 1) * T**2 * N * N)
+        C_v = np.sum((e_sample - mean_E)**2) / ((use_last - 1) * T * N * N)
 
         # Error más realista del calor específico
-        Cv_terms = (e_sample - mean_E)**2 / (T**2 * N * N)
+        # Cv_terms = (e_sample - mean_E)**2 / (T**2 * N * N)
+        Cv_terms = (e_sample - mean_E)**2 / (T * N * N)
         mean_Cv = np.mean(Cv_terms)
         std_C = std_manual(Cv_terms, mean_Cv) / np.sqrt(use_last)
-        M2 = np.mean(m_sample**2)
-        chi = (M2 - mean_M**2) / (T * N * N)
-        
-        # Para el error de chi (usando la varianza de M^2)
-        chi_terms = (m_sample**2 - M2)**2 / (T**2 * N**4)
-        mean_chi = chi
-        std_chi_val = std_manual(chi_terms, np.mean(chi_terms)) / np.sqrt(use_last)
 
         # Guardar resultados
-        avg_energies[i] = mean_E
-        std_energies[i] = std_E*cfe
-        avg_mags[i] = np.abs(mean_M)
-        std_mags[i] = std_M*cfm
+        avg_energies[i] = mean_E//np.sqrt(use_last)
+        std_energies[i] = std_E//np.sqrt(use_last)
+        avg_mags[i] = mean_M
+        std_mags[i] = std_M
         heat_capacities[i] = C_v
-        std_Cv[i] = std_C*cfe
-        susceptibilities[i] = chi
-        std_chi[i] = std_chi_val*cfm
+        std_Cv[i] = std_C
 
-
-    return avg_mags, std_mags, avg_energies, std_energies, heat_capacities, std_Cv, susceptibilities, std_chi
-
+    return avg_mags, std_mags, avg_energies, std_energies, heat_capacities, std_Cv
 
 
 def save_images_as_png(images, save_dir, prefix="img", cmap="plasma", scale=1, verbose=True):
@@ -755,7 +743,7 @@ def plot_quantity_vs_T(Ts, values, errors=None, ylabel="", title="", save_path=N
     plt.xlabel('Temperature (T)')
     plt.ylabel(ylabel)
     plt.title(title)
-    plt.grid(False)
+    plt.grid(True, linestyle='--', alpha=0.4)
     plt.tight_layout()
 
     if save_path is not None:
@@ -832,7 +820,7 @@ def extrapolate_Tc(N_values: np.ndarray, Tc_values: np.ndarray) -> tuple[float, 
 
 
 
-def get_clustered_temperatures(n_temperatures, center, low, high, fraction_center=0.7, width=0.15):
+def get_clustered_temperatures(n_temperatures, center, low, high, fraction_center=0.7, width=0.2):
     """
     Genera un conjunto de temperaturas deterministas, distribuidas densamente
     alrededor de un valor central. Se garantiza que una fracción configurable de los
@@ -876,15 +864,9 @@ def get_clustered_temperatures(n_temperatures, center, low, high, fraction_cente
 
 
 
-def estimate_critical_exponents(
-    Ts, mags, std_mags,
-    heat_capacities, std_Cv,
-    susceptibilities, std_chi,
-    Tc, window=0.15, min_points=5,
-    min_dist_to_Tc=0.02  # Nuevo parámetro para excluir puntos demasiado cercanos a Tc
-):
+def estimate_critical_exponents(Ts, mags, std_mags, heat_capacities, std_Cv, Tc, window=0.15, min_points=5):
     """
-    Estima β, α y γ con errores estándar usando ajuste log-log ponderado por las incertidumbres.
+    Estima β y α con errores estándar usando ajuste log-log ponderado por las incertidumbres.
 
     Parámetros:
     - Ts : array de temperaturas
@@ -892,80 +874,67 @@ def estimate_critical_exponents(
     - std_mags : array de errores estándar de las magnetizaciones
     - heat_capacities : array de calor específico medio
     - std_Cv : array de errores estándar del calor específico
-    - susceptibilities : array de susceptibilidades
-    - std_chi : array de errores estándar de susceptibilidad
     - Tc : temperatura crítica estimada
-    - window : ancho del intervalo alrededor de Tc para el ajuste
+    - window : ventana alrededor de Tc para el ajuste
     - min_points : número mínimo de puntos para el ajuste
-    - min_dist_to_Tc : distancia mínima a Tc para excluir puntos demasiado cercanos
 
     Retorna:
     - beta_fit : exponente β
     - beta_err : error en β
     - alpha_fit : exponente α
     - alpha_err : error en α
-    - gamma_fit : exponente γ
-    - gamma_err : error en γ
     - mask_critical : máscara booleana de puntos usados en el ajuste
     """
+    import numpy as np
 
+    # Seleccionar zona crítica Ts < Tc y |Ts - Tc| < window
     delta_T = np.abs(Ts - Tc)
-    # Nueva máscara que excluye puntos demasiado cercanos a Tc
-    mask_critical = (delta_T < window) & (delta_T > min_dist_to_Tc) & (Ts < Tc)
+    mask_critical = (delta_T < window) & (Ts < Tc)
 
     if np.count_nonzero(mask_critical) < min_points:
-        return np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, mask_critical
+        return np.nan, np.nan, np.nan, np.nan, mask_critical
 
-    # Subconjuntos críticos
+    # Datos filtrados
     T_vals = Ts[mask_critical]
     M_vals = mags[mask_critical]
     C_vals = heat_capacities[mask_critical]
-    chi_vals = susceptibilities[mask_critical]
 
+    # Logaritmos de las variables
     log_T = np.log(Tc - T_vals)
     log_M = np.log(M_vals + 1e-10)
     log_C = np.log(C_vals + 1e-10)
-    log_chi = np.log(chi_vals + 1e-10)
 
-    # Errores relativos
+    # Errores propagados en logaritmos: Δlog(x) ≈ Δx / x
     log_M_errors = std_mags[mask_critical] / (M_vals + 1e-10)
-    log_C_errors = 2*std_Cv[mask_critical] / (C_vals + 1e-10)
-    log_chi_errors = std_chi[mask_critical] / (chi_vals + 1e-10)
+    log_C_errors = std_Cv[mask_critical] / (C_vals + 1e-10)
 
-    # Pesos para ajuste ponderado
+    # Pesos para el ajuste ponderado: w = 1 / σ^2
     weights_M = 1.0 / (log_M_errors**2 + 1e-12)
     weights_C = 1.0 / (log_C_errors**2 + 1e-12)
-    weights_chi = 1.0 / (log_chi_errors**2 + 1e-12)
 
-    # Ajustes lineales log-log
-    slope_M, _ = np.polyfit(log_T, log_M, 1, w=weights_M)
-    slope_C, _ = np.polyfit(log_T, log_C, 1, w=weights_C)
-    slope_chi, _ = np.polyfit(log_T, log_chi, 1, w=weights_chi)
+    # Ajuste lineal ponderado en escala log-log
+    slope_M, intercept_M = np.polyfit(log_T, log_M, 1, w=weights_M)
+    cov_beta = None
+    try:
+        _, cov = np.polyfit(log_T, log_M, 1, w=weights_M, cov=True)
+        cov_beta = cov
+    except:
+        pass
+    slope_C, intercept_C = np.polyfit(log_T, log_C, 1, w=weights_C)
+    cov_alpha = None
+    try:
+        _, cov = np.polyfit(log_T, log_C, 1, w=weights_C, cov=True)
+        cov_alpha = cov
+    except:
+        pass
 
-    beta_fit = slope_M
+    # Exponentes y sus errores
+    beta_fit = -slope_M
+    beta_err = np.sqrt(cov_beta[0, 0]) if cov_beta is not None else np.nan
     alpha_fit = -slope_C
-    gamma_fit = -slope_chi
+    alpha_err = np.sqrt(cov_alpha[0, 0]) if cov_alpha is not None else np.nan
 
-    # Estimación de errores a partir de la matriz de covarianza
-    try:
-        _, cov_beta = np.polyfit(log_T, log_M, 1, w=weights_M, cov=True)
-        beta_err = np.sqrt(cov_beta[0, 0])
-    except:
-        beta_err = np.nan
-
-    try:
-        _, cov_alpha = np.polyfit(log_T, log_C, 1, w=weights_C, cov=True)
-        alpha_err = np.sqrt(cov_alpha[0, 0])
-    except:
-        alpha_err = np.nan
-
-    try:
-        _, cov_gamma = np.polyfit(log_T, log_chi, 1, w=weights_chi, cov=True)
-        gamma_err = np.sqrt(cov_gamma[0, 0])
-    except:
-        gamma_err = np.nan
-
-    return beta_fit, beta_err, alpha_fit, alpha_err, gamma_fit, gamma_err, mask_critical
+    return beta_fit, beta_err, alpha_fit, alpha_err, mask_critical
 
 def extrapolate_exponent(N_values: np.ndarray, exponent_values: np.ndarray, label='β') -> tuple[float, float, np.ndarray]:
     """
