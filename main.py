@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # ===========================================
 #       PARAMETERS AND CONFIGURATION
 # ===========================================
-seed = 3853
+seed = 3854
 np.random.seed(seed)
 test_verbose = True
 
@@ -15,7 +15,7 @@ test_verbose = True
 N = 100
 J1, J2 = 1, 0
 T_fixed = 0.1
-MC_steps = 20000
+MC_steps = 5_000
 Iterations = N*N*MC_steps
 
 # Time testing markers
@@ -101,7 +101,7 @@ plot_time_series(energies, 'Energy', 'Energy vs MC steps', 'energia_vs_pasos.png
 Ts = get_clustered_temperatures(n_temperatures=100, center=2.26, low=0.5, high=4)
 #Ts = np.linspace(2,7,100)
 N_values = np.array([64, 128, 256, 512], dtype=int)
-MC_steps_temp = 200000
+MC_steps_temp = 50_000
 
 Tc_estimates = np.empty_like(N_values, dtype=np.float32)
 beta_estimates = np.empty_like(N_values, dtype=np.float32)

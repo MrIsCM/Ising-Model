@@ -215,8 +215,8 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
 
     # 1. Initialize variables
     web = lattice.copy()
-    net_spins = np.zeros(MC_steps)
-    net_energy = np.zeros(MC_steps)
+    net_spins = np.empty(MC_steps, dtype=np.float32)            # Updated every MC step
+    net_energy = np.empty(MC_steps, dtype=np.float32)           # Updated every MC step
 
     #------------------------
     #   Image saving logic
@@ -266,7 +266,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
     return net_spins, net_energy, images, last_config
 
 
-@njit(parallel=False)
+@njit(parallel=True)
 def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     """
     Perform the Metropolis algorithm for simulating the Ising model.

@@ -7,3 +7,6 @@ test_*/
 
 # ignore __pycache__
 __pycache__
+
+# Ignore .npy files
+*.npy
