@@ -215,8 +215,8 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
 
     # 1. Initialize variables
     web = lattice.copy()
-    net_spins = np.empty(MC_steps, dtype=np.float32)            # Updated every MC step
-    net_energy = np.empty(MC_steps, dtype=np.float32)           # Updated every MC step
+    net_spins = np.zeros(MC_steps)
+    net_energy = np.zeros(MC_steps)
 
     #------------------------
     #   Image saving logic
@@ -266,7 +266,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
     return net_spins, net_energy, images, last_config
 
 
-@njit(parallel=True)
+@njit(parallel=False)
 def metropolis_large(lattice, MC_steps, T, energy, N, J1, J2, seed=42):
     """
     Perform the Metropolis algorithm for simulating the Ising model.
@@ -880,8 +880,8 @@ def estimate_critical_exponents(
     Ts, mags, std_mags,
     heat_capacities, std_Cv,
     susceptibilities, std_chi,
-    Tc, window=0.15, min_points=5,
-    min_dist_to_Tc=0.02  # Nuevo parámetro para excluir puntos demasiado cercanos a Tc
+    Tc, window=0.16, min_points=5,
+    min_dist_to_Tc=0.04  # Nuevo parámetro para excluir puntos demasiado cercanos a Tc
 ):
     """
     Estima β, α y γ con errores estándar usando ajuste log-log ponderado por las incertidumbres.
@@ -967,17 +967,19 @@ def estimate_critical_exponents(
 
     return beta_fit, beta_err, alpha_fit, alpha_err, gamma_fit, gamma_err, mask_critical
 
-def extrapolate_exponent(N_values: np.ndarray, exponent_values: np.ndarray, label='β') -> tuple[float, float, np.ndarray]:
+def extrapolate_exponent(N_values: np.ndarray, exponent_values: np.ndarray, exponent_errors: np.ndarray, label='β') -> tuple[float, float, np.ndarray]:
     """
-    Extrapola el exponente al límite N→∞ con ajuste lineal y devuelve su error.
+    Extrapola el exponente al límite N→∞ con ajuste ponderado por los errores (1σ).
     
     Devuelve:
-    - valor extrapolado
+    - valor extrapolado en N→∞
     - error (1σ)
-    - coeficientes del ajuste lineal
+    - coeficientes del ajuste lineal (pendiente, ordenada)
     """
     invN = 1.0 / N_values
-    coef, cov = np.polyfit(invN, exponent_values, 1, cov=True)
+    weights = 1.0 / (exponent_errors**2 + 1e-12)  # Evitar división por cero
+
+    coef, cov = np.polyfit(invN, exponent_values, 1, w=weights, cov=True)
     exponent_inf = coef[1]
     err = np.sqrt(cov[1, 1])
 

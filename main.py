@@ -7,15 +7,15 @@ import matplotlib.pyplot as plt
 # ===========================================
 #       PARAMETERS AND CONFIGURATION
 # ===========================================
-seed = 3854
+seed = 3500
 np.random.seed(seed)
 test_verbose = True
 
 # Simulation parameters for single-T run (images + time evolution)
 N = 100
-J1, J2 = 1, 0
-T_fixed = 0.1
-MC_steps = 5_000
+J1, J2 = 1.0, 0.0
+T_fixed = 3.5
+MC_steps = 10_000
 Iterations = N*N*MC_steps
 
 # Time testing markers
@@ -98,10 +98,10 @@ plot_time_series(energies, 'Energy', 'Energy vs MC steps', 'energia_vs_pasos.png
 # ===========================================
 #     BARRIDO EN TEMPERATURAS PARA VARIOS N
 # ===========================================
-Ts = get_clustered_temperatures(n_temperatures=100, center=2.26, low=0.5, high=4)
+Ts = get_clustered_temperatures(n_temperatures=100, center=4.05, low=2, high=6)
 #Ts = np.linspace(2,7,100)
 N_values = np.array([64, 128, 256, 512], dtype=int)
-MC_steps_temp = 50_000
+MC_steps_temp = 150000
 
 Tc_estimates = np.empty_like(N_values, dtype=np.float32)
 beta_estimates = np.empty_like(N_values, dtype=np.float32)
@@ -295,36 +295,32 @@ plt.title(f'Extrapolation of $T_c$ to thermodynamic limit')
 plt.grid(False)
 plt.tight_layout()
 plt.legend()
-plt.ylim(0.5, 4)
+plt.ylim(2, 6)
 plt.savefig(paths['figures'] / 'Tc_extrapolation.png', dpi=300)
 plt.close()
 
 # ===========================================
-#   EXTRAPOLACIÓN DE β Y α AL LÍMITE N → ∞
+#   EXTRAPOLACIÓN DE β, α Y γ AL LÍMITE N → ∞
 # ===========================================
 invN = 1.0 / N_values
 
-
 # Extrapolar β
-beta_inf, beta_err, beta_coef = extrapolate_exponent(N_values, beta_estimates, label='β')
-
+beta_inf, beta_err, beta_coef = extrapolate_exponent(N_values, beta_estimates, beta_errors, label='β')
 plt.figure(figsize=(6, 4))
 plt.errorbar(invN, beta_estimates, yerr=beta_errors, fmt='o', color='purple', label=r'$\beta(N)$', capsize=3)
 plt.plot(invN, beta_coef[0]*invN + beta_coef[1],
-         'r--', label=f'Fit: -β = {beta_coef[0]:.2f}/N + {beta_coef[1]:.3f}')
+         'r--', label=f'Fit: β = {beta_coef[0]:.2f}/N + {beta_coef[1]:.3f}')
 plt.xlabel('1/N')
 plt.ylabel(r'Critical exponent $\beta$')
 plt.title(r'Extrapolation of $\beta$ to thermodynamic limit')
 plt.grid(False)
 plt.tight_layout()
 plt.legend()
-plt.ylim(-0.15, 0.1)
 plt.savefig(paths['figures'] / 'beta_extrapolation.png', dpi=300)
 plt.close()
 
 # Extrapolar α
-alpha_inf, alpha_err, alpha_coef = extrapolate_exponent(N_values, alpha_estimates, label='α')
-
+alpha_inf, alpha_err, alpha_coef = extrapolate_exponent(N_values, alpha_estimates, alpha_errors, label='α')
 plt.figure(figsize=(6, 4))
 plt.errorbar(invN, alpha_estimates, yerr=alpha_errors, fmt='o', color='blue', label=r'$\alpha(N)$', capsize=3)
 plt.plot(invN, alpha_coef[0]*invN + alpha_coef[1],
@@ -339,8 +335,7 @@ plt.savefig(paths['figures'] / 'alpha_extrapolation.png', dpi=300)
 plt.close()
 
 # Extrapolar γ
-gamma_inf, gamma_err, gamma_coef = extrapolate_exponent(N_values, gamma_estimates, label='γ')
-
+gamma_inf, gamma_err, gamma_coef = extrapolate_exponent(N_values, gamma_estimates, gamma_errors, label='γ')
 plt.figure(figsize=(6, 4))
 plt.errorbar(invN, gamma_estimates, yerr=gamma_errors, fmt='o', color='darkviolet',
              label=r'$\gamma(N)$', capsize=3)
@@ -355,9 +350,7 @@ plt.legend()
 plt.savefig(paths['figures'] / 'gamma_extrapolation.png', dpi=300)
 plt.close()
 
-
-
-        
+# Guardar resultados extrapolados
 with open(
     paths['data'] / 'extrapolaciones_infinito.txt',
     'w', encoding='utf-8'
