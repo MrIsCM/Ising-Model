@@ -98,10 +98,10 @@ plot_time_series(energies, 'Energy', 'Energy vs MC steps', 'energia_vs_pasos.png
 # ===========================================
 #     BARRIDO EN TEMPERATURAS PARA VARIOS N
 # ===========================================
-Ts = get_clustered_temperatures(n_temperatures=100, center=4.05, low=2, high=6)
+Ts = get_clustered_temperatures(n_temperatures=100, center=2.26, low=0.5, high=4)
 #Ts = np.linspace(2,7,100)
 N_values = np.array([64, 128, 256, 512], dtype=int)
-MC_steps_temp = 150000
+MC_steps_temp = 50_000
 
 Tc_estimates = np.empty_like(N_values, dtype=np.float32)
 beta_estimates = np.empty_like(N_values, dtype=np.float32)
@@ -123,15 +123,15 @@ for i, Ni in enumerate(N_values):
     
     # Barrido de temperaturas usando la función Numba
     avg_mags, std_mags, avg_energies, std_energies, heat_capacities, std_Cv, susceptibilities, std_chi = get_M_E_C_of_T_numba(
-    lattice=lattice,
-    energy=E0,
-    Ts=Ts,
-    N=Ni_int,
-    J1=J1,
-    J2=J2,
-    MC_steps=MC_steps_temp,
-    seed=seed,
-    use_last=10000
+        lattice=lattice,
+        energy=E0,
+        Ts=Ts,
+        N=Ni_int,
+        J1=J1,
+        J2=J2,
+        MC_steps=MC_steps_temp,
+        seed=seed,
+        use_last=10000
     )
     
 
