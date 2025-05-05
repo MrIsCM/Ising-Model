@@ -10,3 +10,6 @@ __pycache__
 
 # Ignore .npy files
 *.npy
+
+# Ignore .zip files
+*.zip

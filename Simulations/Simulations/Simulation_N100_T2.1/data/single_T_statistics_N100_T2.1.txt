@@ -1,0 +1,5 @@
+# Single temperature analysis for T = 2.1, N = 100
+Quantity	Mean	StdError
+Magnetization	0.087413	0.001731
+Energy	-15633.366400	58.878203
+Specific Heat	0.078609	0.001335
