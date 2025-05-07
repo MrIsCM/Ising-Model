@@ -8,8 +8,9 @@ test_*/
 # ignore __pycache__
 __pycache__
 
-# Ignore .npy files
+# Ignore .npy and .npz files
 *.npy
+*.npz
 
 # Ignore .zip files
 *.zip
