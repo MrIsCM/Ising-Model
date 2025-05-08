@@ -10,7 +10,12 @@ __pycache__
 
 # Ignore .npy and .npz files
 *.npy
-*.npz
+
+# Ignore file containing last states of the simulation (very big files)
+data/Last States
+
+# ignore old data files
+data/old
 
 # Ignore .zip files
 *.zip
