@@ -223,7 +223,7 @@ def metropolis(lattice, MC_steps, T, energy, N, J1, J2, seed=42, save_images=Fal
     #------------------------
     aux_img_idx = 0
     if save_images and images_spacing is not None:
-        images = np.empty((len(images_spacing), N, N), dtype=np.int8)
+        images = np.empty((len(images_spacing)+1, N, N), dtype=np.int8)
         
     # 'None' used for consistency in the return statement
     else:
