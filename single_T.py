@@ -13,8 +13,8 @@ np.random.seed(seed)
 # Simulation parameters for single-T run (images + time evolution)
 N = 100
 J1, J2 = 1.0, 0.0
-T_fixed = 4.0
-MC_steps = 5_000
+T_fixed = 1.0
+MC_steps = 10_000
 Iterations = N*N*MC_steps
 
 
@@ -38,7 +38,7 @@ simulation_params = {
     'J1': J1,
     'J2': J2,
     'save_images': True,
-    'images_spacing': np.unique(np.logspace(0, np.log10(MC_steps), 100, dtype=int)),
+    'images_spacing': np.unique(np.logspace(0, np.log10(Iterations), 100, dtype=int)),
     'seed': seed,
 }
 # Run Metropolis once for images, spins and energies
